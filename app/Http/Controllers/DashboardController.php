@@ -3,18 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\DashboardRepository;
-use App\Traits\CanStreamCsv;
+use App\Services\CsvExportService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
-    use CanStreamCsv;
-
     public function __construct(
-        protected DashboardRepository $dashboardRepository
+        protected DashboardRepository $dashboardRepository,
+        protected CsvExportService $csvExportService
     ) {}
 
     public function index(Request $request)
@@ -126,18 +125,14 @@ class DashboardController extends Controller
         ));
     }
 
-    public function exportDetil(Request $request)
+    public function exportDetil(Request $request): StreamedResponse
     {
-        // Mengambil parameter dari request/filter dashboard
-        [$tahun, $bulanAwal,$bulanAkhir] = $this->resolvePeriod($request);
+        [$tahun, $bulanAwal, $bulanAkhir] = $this->resolvePeriod($request);
 
-        // Filter tahun setor: tahun terpilih dan 1 tahun sebelumnya (contoh: 2026 & 2025)
         $tahunLalu = $tahun - 1;
         $tahunFilter = [$tahunLalu, $tahun];
-
         $filename = "dashboard_detil_{$tahunLalu}_{$tahun}_Jan_sd_Bln_{$bulanAkhir}.csv";
 
-        // Pemetaan seluruh kolom tabel `drm` ke Header CSV
         $columnsMap = [
             'id' => 'ID',
             'kd_kanwil' => 'KD Kanwil',
@@ -166,14 +161,14 @@ class DashboardController extends Controller
             'tipe' => 'Tipe',
         ];
 
-        $query = DB::table('drm')
-            ->select(array_keys($columnsMap))
-            ->whereIn('thn_setor', $tahunFilter)
-            ->whereBetween('bln_setor', [$bulanAwal, $bulanAkhir])
-            ->orderBy('id', 'asc'); // Sangat cepat untuk chunk() dan tanpa Filesort
+        $query = $this->dashboardRepository->getExportDetilQuery(
+            $tahunFilter,
+            $bulanAwal,
+            $bulanAkhir,
+            array_keys($columnsMap)
+        );
 
-        // Menggunakan Trait streaming CSV dengan chunking (misal per 3.000 baris)
-        return $this->streamCsvFromQuery($filename, $columnsMap, $query, 2000);
+        return $this->csvExportService->exportFromQuery($filename, $columnsMap, $query, 2000);
     }
 
     private function resolvePeriod(Request $request): array

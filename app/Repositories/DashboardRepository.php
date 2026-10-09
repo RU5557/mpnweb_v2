@@ -4,14 +4,13 @@ namespace App\Repositories;
 
 use App\Models\SummaryMartPenerimaan;
 use App\Models\Target;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use stdClass;
 
 class DashboardRepository
 {
-    /**
-     * Ambil Target berdasarkan Tahun (Cached 10 Menit)
-     */
     public function getTargetByTahun(int $tahun): ?Target
     {
         return Cache::remember("dashboard_target_{$tahun}", 600, function () use ($tahun) {
@@ -19,9 +18,6 @@ class DashboardRepository
         });
     }
 
-    /**
-     * Ambil Agregasi Penerimaan dari Summary Mart (Cached 10 Menit)
-     */
     public function getSummaryMetrics(int $thnIni, int $blnAwal, int $blnAkhir): stdClass
     {
         $thnLalu = $thnIni - 1;
@@ -72,6 +68,18 @@ class DashboardRepository
 
             return $result ?? new stdClass;
         });
+    }
+
+    /**
+     * Ambil Query Builder DRM Detil untuk Export Dashboard
+     */
+    public function getExportDetilQuery(array $tahunFilter, int $bulanAwal, int $bulanAkhir, array $selectColumns): Builder
+    {
+        return DB::table('drm')
+            ->select($selectColumns)
+            ->whereIn('thn_setor', $tahunFilter)
+            ->whereBetween('bln_setor', [$bulanAwal, $bulanAkhir])
+            ->orderBy('id', 'asc');
     }
 
     private function quoteArray(array $array): string
