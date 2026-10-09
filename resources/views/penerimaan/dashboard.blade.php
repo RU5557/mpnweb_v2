@@ -62,8 +62,8 @@
                 </a>
             @endif
 
-            <!-- Tombol Export Detil Transaksi -->
-            <a href="{{ route('dashboard.export-detil', request()->all()) }}"
+            <!-- Tombol Export Detil Transaksi (Eksplisit membawa parameter ter-resolve) -->
+            <a href="{{ route('dashboard.export-detil', ['tahun' => $thnIni, 'bulan_awal' => $blnAwal, 'bulan_akhir' => $blnAkhir]) }}"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5 border border-emerald-600">
                 <i class="fa-solid fa-file-excel text-xs"></i>
                 <span>Export CSV</span>
@@ -73,7 +73,6 @@
 
     <!-- BARIS 1: CARD RINGKASAN UTAMA (3 KOLOM) -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-
         <!-- Penerimaan Saat Ini -->
         <div
             class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 border-l-4 border-l-blue-600 flex flex-col justify-between">
@@ -132,232 +131,61 @@
                 Pembanding tahun lalu (YoY)
             </div>
         </div>
-
     </div>
 
     <!-- BARIS 2 & 3: GRID PERFORMANCE CARD (3 KOLOM x 2 BARIS) -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <!-- Card 1: PPM -->
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-base">PPM</h3>
-                        <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
-                    </div>
-                    <span
-                        class="{{ $metrics['ppm']['persen'] < 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-blue-50 text-blue-700 border-blue-200' }} border font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
-                        {{ number_format($metrics['ppm']['persen'], 1, ',', '.') }}%
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
-                    <div class="flex justify-between">
-                        <span>Target:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['ppm']['target'], 0, ',', '.') }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Realisasi:</span>
+        @foreach ([
+            'ppm' => 'PPM',
+            'pkm' => 'PKM',
+            'pbp' => 'PBP',
+            'pengawasan' => 'PKM Pengawasan',
+            'pemeriksaan' => 'PKM Pemeriksaan',
+            'penagihan' => 'PKM Penagihan',
+        ] as $key => $title)
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-base">{{ $title }}</h3>
+                            <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
+                        </div>
                         <span
-                            class="font-semibold {{ $metrics['ppm']['realisasi'] < 0 ? 'text-rose-600' : 'text-slate-800' }} tabular-nums">Rp
-                            {{ number_format($metrics['ppm']['realisasi'], 0, ',', '.') }}</span>
+                            class="bg-slate-100 text-slate-800 border border-slate-200 font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
+                            {{ number_format($metrics[$key]['persen'], 1, ',', '.') }}%
+                        </span>
+                    </div>
+                    <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
+                        <div class="flex justify-between">
+                            <span>Target:</span>
+                            <span class="font-semibold text-slate-800 tabular-nums">Rp
+                                {{ number_format($metrics[$key]['target'], 0, ',', '.') }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Realisasi:</span>
+                            <span class="font-semibold text-slate-800 tabular-nums">Rp
+                                {{ number_format($metrics[$key]['realisasi'], 0, ',', '.') }}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
-                <span class="text-slate-500">Pertumbuhan YoY:</span>
-                <span
-                    class="{{ $metrics['ppm']['growthYoY'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }} font-semibold tabular-nums">
-                    <i
-                        class="fa-solid {{ $metrics['ppm']['growthYoY'] >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
-                    {{ number_format(abs($metrics['ppm']['growthYoY']), 2, ',', '.') }}%
-                </span>
-            </div>
-        </div>
 
-        <!-- Card 2: PKM -->
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-base">PKM</h3>
-                        <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
-                    </div>
-                    <span
-                        class="bg-sky-50 text-sky-700 border border-sky-200 font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
-                        {{ number_format($metrics['pkm']['persen'], 1, ',', '.') }}%
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
-                    <div class="flex justify-between">
-                        <span>Target:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pkm']['target'], 0, ',', '.') }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Realisasi:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pkm']['realisasi'], 0, ',', '.') }}</span>
-                    </div>
+                <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
+                    @if ($key === 'pbp')
+                        <span class="text-slate-500">Sisa Target:</span>
+                        <span class="text-rose-600 font-semibold tabular-nums">
+                            Rp {{ number_format($metrics[$key]['sisa'], 0, ',', '.') }}
+                        </span>
+                    @else
+                        <span class="text-slate-500">Pertumbuhan YoY:</span>
+                        <span
+                            class="{{ $metrics[$key]['growthYoY'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }} font-semibold tabular-nums">
+                            <i
+                                class="fa-solid {{ $metrics[$key]['growthYoY'] >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
+                            {{ number_format(abs($metrics[$key]['growthYoY']), 2, ',', '.') }}%
+                        </span>
+                    @endif
                 </div>
             </div>
-            <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
-                <span class="text-slate-500">Pertumbuhan YoY:</span>
-                <span
-                    class="{{ $metrics['pkm']['growthYoY'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }} font-semibold tabular-nums">
-                    <i
-                        class="fa-solid {{ $metrics['pkm']['growthYoY'] >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
-                    {{ number_format(abs($metrics['pkm']['growthYoY']), 2, ',', '.') }}%
-                </span>
-            </div>
-        </div>
-
-        <!-- Card 3: PBP -->
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-base">PBP</h3>
-                        <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
-                    </div>
-                    <span
-                        class="bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
-                        {{ number_format($metrics['pbp']['persen'], 1, ',', '.') }}%
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
-                    <div class="flex justify-between">
-                        <span>Target:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pbp']['target'], 0, ',', '.') }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Realisasi:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pbp']['realisasi'], 0, ',', '.') }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
-                <span class="text-slate-500">Sisa Target:</span>
-                <span class="text-rose-600 font-semibold tabular-nums">
-                    Rp {{ number_format($metrics['pbp']['sisa'], 0, ',', '.') }}
-                </span>
-            </div>
-        </div>
-
-        <!-- Card 4: PKM Pengawasan -->
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-base">PKM Pengawasan</h3>
-                        <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
-                    </div>
-                    <span
-                        class="bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
-                        {{ number_format($metrics['pengawasan']['persen'], 1, ',', '.') }}%
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
-                    <div class="flex justify-between">
-                        <span>Target:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pengawasan']['target'], 0, ',', '.') }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Realisasi:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pengawasan']['realisasi'], 0, ',', '.') }}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
-                <span class="text-slate-500">Pertumbuhan YoY:</span>
-                <span
-                    class="{{ $metrics['pengawasan']['growthYoY'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }} font-semibold tabular-nums">
-                    <i
-                        class="fa-solid {{ $metrics['pengawasan']['growthYoY'] >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
-                    {{ number_format(abs($metrics['pengawasan']['growthYoY']), 2, ',', '.') }}%
-                </span>
-            </div>
-        </div>
-
-        <!-- Card 5: PKM Pemeriksaan -->
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-base">PKM Pemeriksaan</h3>
-                        <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
-                    </div>
-                    <span
-                        class="bg-slate-100 text-slate-700 border border-slate-200 font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
-                        {{ number_format($metrics['pemeriksaan']['persen'], 1, ',', '.') }}%
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
-                    <div class="flex justify-between">
-                        <span>Target:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pemeriksaan']['target'], 0, ',', '.') }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Realisasi:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['pemeriksaan']['realisasi'], 0, ',', '.') }}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
-                <span class="text-slate-500">Pertumbuhan YoY:</span>
-                <span
-                    class="{{ $metrics['pemeriksaan']['growthYoY'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }} font-semibold tabular-nums">
-                    <i
-                        class="fa-solid {{ $metrics['pemeriksaan']['growthYoY'] >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
-                    {{ number_format(abs($metrics['pemeriksaan']['growthYoY']), 2, ',', '.') }}%
-                </span>
-            </div>
-        </div>
-
-        <!-- Card 6: PKM Penagihan -->
-        <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between">
-            <div>
-                <div class="flex justify-between items-start mb-3">
-                    <div>
-                        <h3 class="font-bold text-slate-800 text-base">PKM Penagihan</h3>
-                        <p class="text-xs text-slate-400 font-normal">Capaian Target</p>
-                    </div>
-                    <span
-                        class="bg-slate-100 text-slate-800 border border-slate-200 font-semibold text-xs px-2.5 py-0.5 rounded-md tracking-normal tabular-nums">
-                        {{ number_format($metrics['penagihan']['persen'], 1, ',', '.') }}%
-                    </span>
-                </div>
-                <div class="space-y-2 text-xs text-slate-600 border-t pt-3 border-slate-100">
-                    <div class="flex justify-between">
-                        <span>Target:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['penagihan']['target'], 0, ',', '.') }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>Realisasi:</span>
-                        <span class="font-semibold text-slate-800 tabular-nums">Rp
-                            {{ number_format($metrics['penagihan']['realisasi'], 0, ',', '.') }}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="text-xs pt-3 mt-3 border-t border-slate-100 flex justify-between items-center font-medium">
-                <span class="text-slate-500">Pertumbuhan YoY:</span>
-                <span
-                    class="{{ $metrics['penagihan']['growthYoY'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }} font-semibold tabular-nums">
-                    <i
-                        class="fa-solid {{ $metrics['penagihan']['growthYoY'] >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down' }}"></i>
-                    {{ number_format(abs($metrics['penagihan']['growthYoY']), 2, ',', '.') }}%
-                </span>
-            </div>
-        </div>
-
+        @endforeach
     </div>
 @endsection

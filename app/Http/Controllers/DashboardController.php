@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\DashboardRepository;
+use App\Traits\CanStreamCsv;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
+    use CanStreamCsv;
+
     public function __construct(
         protected DashboardRepository $dashboardRepository
     ) {}
@@ -32,7 +35,7 @@ class DashboardController extends Controller
             abort(503, 'Data dashboard sedang tidak tersedia. Silakan coba lagi.');
         }
 
-        // --- Extrak Nilai Nominal ---
+        // Extrak Nilai Nominal
         $penerimaanSaatIni = $penerimaanData->penerimaanSaatIni ?? 0;
         $penerimaanBlnLalu = $penerimaanData->penerimaanBlnLalu ?? 0;
         $penerimaanThnLalu = $penerimaanData->penerimaanThnLalu ?? 0;
@@ -51,54 +54,57 @@ class DashboardController extends Controller
         $realisasiPemeriksaanLalu = $penerimaanData->realisasiPemeriksaanLalu ?? 0;
         $realisasiPenagihanLalu = $penerimaanData->realisasiPenagihanLalu ?? 0;
 
-        // --- Kalkulasi Indikator & Growth ---
+        // Kalkulasi Indikator & Growth
         $targetKantor = $target?->target_kantor ?? 0;
         $capaianKantor = $targetKantor > 0 ? ($penerimaanSaatIni / $targetKantor) * 100 : 0;
 
         $growthMoM = $penerimaanBlnLalu != 0 ? (($penerimaanSaatIni - $penerimaanBlnLalu) / abs($penerimaanBlnLalu)) * 100 : 0;
         $growthYoY = $penerimaanThnLalu != 0 ? (($penerimaanSaatIni - $penerimaanThnLalu) / abs($penerimaanThnLalu)) * 100 : 0;
 
+        // Helper perhitungan persen & growth
+        $calcPersen = fn ($targetVal, $realisasiVal) => ($targetVal ?? 0) > 0 ? ($realisasiVal / $targetVal) * 100 : 0;
+        $calcGrowth = fn ($realisasiIni, $realisasiLalu) => $realisasiLalu != 0 ? (($realisasiIni - $realisasiLalu) / abs($realisasiLalu)) * 100 : 0;
+
         // Metrics Card Configs
         $metrics = [
             'ppm' => [
                 'target' => $target?->target_ppm ?? 0,
                 'realisasi' => $realisasiPPM,
-                'persen' => ($target?->target_ppm ?? 0) > 0 ? ($realisasiPPM / $target->target_ppm) * 100 : 0,
-                'growthYoY' => $realisasiPPMLalu != 0 ? (($realisasiPPM - $realisasiPPMLalu) / abs($realisasiPPMLalu)) * 100 : 0,
+                'persen' => $calcPersen($target?->target_ppm, $realisasiPPM),
+                'growthYoY' => $calcGrowth($realisasiPPM, $realisasiPPMLalu),
             ],
             'pkm' => [
                 'target' => $target?->target_pkm ?? 0,
                 'realisasi' => $realisasiPKM,
-                'persen' => ($target?->target_pkm ?? 0) > 0 ? ($realisasiPKM / $target->target_pkm) * 100 : 0,
-                'growthYoY' => $realisasiPKMLalu != 0 ? (($realisasiPKM - $realisasiPKMLalu) / abs($realisasiPKMLalu)) * 100 : 0,
+                'persen' => $calcPersen($target?->target_pkm, $realisasiPKM),
+                'growthYoY' => $calcGrowth($realisasiPKM, $realisasiPKMLalu),
             ],
             'pbp' => [
                 'target' => $target?->target_pbp ?? 0,
                 'realisasi' => $realisasiPBP,
-                'persen' => ($target?->target_pbp ?? 0) > 0 ? ($realisasiPBP / $target->target_pbp) * 100 : 0,
+                'persen' => $calcPersen($target?->target_pbp, $realisasiPBP),
                 'sisa' => max(0, ($target?->target_pbp ?? 0) - $realisasiPBP),
             ],
             'pengawasan' => [
                 'target' => $target?->target_pkm_pengawasan ?? 0,
                 'realisasi' => $realisasiPengawasan,
-                'persen' => ($target?->target_pkm_pengawasan ?? 0) > 0 ? ($realisasiPengawasan / $target->target_pkm_pengawasan) * 100 : 0,
-                'growthYoY' => $realisasiPengawasanLalu != 0 ? (($realisasiPengawasan - $realisasiPengawasanLalu) / abs($realisasiPengawasanLalu)) * 100 : 0,
+                'persen' => $calcPersen($target?->target_pkm_pengawasan, $realisasiPengawasan),
+                'growthYoY' => $calcGrowth($realisasiPengawasan, $realisasiPengawasanLalu),
             ],
             'pemeriksaan' => [
                 'target' => $target?->target_pkm_pemeriksaan ?? 0,
                 'realisasi' => $realisasiPemeriksaan,
-                'persen' => ($target?->target_pkm_pemeriksaan ?? 0) > 0 ? ($realisasiPemeriksaan / $target->target_pkm_pemeriksaan) * 100 : 0,
-                'growthYoY' => $realisasiPemeriksaanLalu != 0 ? (($realisasiPemeriksaan - $realisasiPemeriksaanLalu) / abs($realisasiPemeriksaanLalu)) * 100 : 0,
+                'persen' => $calcPersen($target?->target_pkm_pemeriksaan, $realisasiPemeriksaan),
+                'growthYoY' => $calcGrowth($realisasiPemeriksaan, $realisasiPemeriksaanLalu),
             ],
             'penagihan' => [
                 'target' => $target?->target_pkm_penagihan ?? 0,
                 'realisasi' => $realisasiPenagihan,
-                'persen' => ($target?->target_pkm_penagihan ?? 0) > 0 ? ($realisasiPenagihan / $target->target_pkm_penagihan) * 100 : 0,
-                'growthYoY' => $realisasiPenagihanLalu != 0 ? (($realisasiPenagihan - $realisasiPenagihanLalu) / abs($realisasiPenagihanLalu)) * 100 : 0,
+                'persen' => $calcPersen($target?->target_pkm_penagihan, $realisasiPenagihan),
+                'growthYoY' => $calcGrowth($realisasiPenagihan, $realisasiPenagihanLalu),
             ],
         ];
 
-        // List Nama Bulan untuk Filter Dropdown
         $listBulan = [
             1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
             5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
@@ -122,67 +128,55 @@ class DashboardController extends Controller
 
     public function exportDetil(Request $request)
     {
-        [$tahun, $bulanAwal, $bulanAkhir] = $this->resolvePeriod($request);
+        // Mengambil parameter dari request/filter dashboard
+        [$tahun, $bulanAwal,$bulanAkhir] = $this->resolvePeriod($request);
 
-        $filename = "Export_Detil_Transaksi_Dashboard_{$tahun}_{$bulanAwal}_sd_{$bulanAkhir}.csv";
+        // Filter tahun setor: tahun terpilih dan 1 tahun sebelumnya (contoh: 2026 & 2025)
+        $tahunLalu = $tahun - 1;
+        $tahunFilter = [$tahunLalu, $tahun];
 
-        $headers = [
-            'Content-type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            'Pragma' => 'no-cache',
-            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0',
+        $filename = "Export_Tabel_DRM_{$tahunLalu}_{$tahun}_Jan_sd_Bln_{$bulanAkhir}.csv";
+
+        // Pemetaan seluruh kolom tabel `drm` ke Header CSV
+        $columnsMap = [
+            'id' => 'ID',
+            'kd_kanwil' => 'KD Kanwil',
+            'kpp_adm' => 'KPP Adm',
+            'npwp' => 'NPWP',
+            'kpp' => 'KPP',
+            'cabang' => 'Cabang',
+            'no_produk_hukum' => 'No Produk Hukum',
+            'npwp15' => 'NPWP15',
+            'nama_wp' => 'Nama WP',
+            'no_pbk' => 'No PBK',
+            'ntpn' => 'NTPN',
+            'tgl_setor' => 'Tgl Setor',
+            'thn_setor' => 'Thn Setor',
+            'bln_setor' => 'Bln Setor',
+            'thn_pajak' => 'Thn Pajak',
+            'masa1' => 'Masa 1',
+            'masa2' => 'Masa 2',
+            'jml_setor' => 'Jml Setor (Rp)',
+            'kd_map' => 'Kode MAP',
+            'kd_bayar' => 'Kode Bayar',
+            'fungsi' => 'Fungsi',
+            'jenis' => 'Jenis',
+            'flag_skp' => 'Flag SKP',
+            'id_sbr_data' => 'ID Sbr Data',
+            'tipe' => 'Tipe',
         ];
 
-        return response()->stream(function () use ($tahun, $bulanAwal, $bulanAkhir) {
-            set_time_limit(0);
+        // Kueri langsung ke tabel `drm` memanfaatkan indeks komposit `idx_dt_thn_bln_tgl`
+        $query = DB::table('drm')
+            ->select(array_keys($columnsMap))
+            ->whereIn('thn_setor', $tahunFilter)
+            ->whereBetween('bln_setor', [$bulanAwal, $bulanAkhir])
+            ->orderBy('thn_setor', 'desc')
+            ->orderBy('bln_setor', 'desc')
+            ->orderBy('id', 'asc');
 
-            $file = fopen('php://output', 'w');
-            fwrite($file, chr(0xEF).chr(0xBB).chr(0xBF));
-
-            try {
-                $query = DB::table('detil_transaksi_wp as dt')
-                    ->where('dt.thn_setor', $tahun)
-                    ->whereBetween('dt.bln_setor', [$bulanAwal, $bulanAkhir])
-                    ->orderBy('dt.bln_setor', 'asc');
-
-                $isHeaderWritten = false;
-                $rowCount = 0;
-
-                foreach ($query->cursor() as $row) {
-                    $rowArray = (array) $row;
-
-                    if (! $isHeaderWritten) {
-                        fputcsv($file, array_keys($rowArray));
-                        $isHeaderWritten = true;
-                    }
-
-                    fputcsv($file, $rowArray);
-                    $rowCount++;
-
-                    if ($rowCount % 1000 === 0) {
-                        $this->flushOutputBuffer();
-                    }
-                }
-
-                if (! $isHeaderWritten) {
-                    fputcsv($file, ['INFO']);
-                    fputcsv($file, ['Tidak ada data transaksi']);
-                }
-            } catch (QueryException $e) {
-                Log::error('Gagal mengekspor detil transaksi dashboard.', [
-                    'tahun' => $tahun,
-                    'bulan_awal' => $bulanAwal,
-                    'bulan_akhir' => $bulanAkhir,
-                    'message' => $e->getMessage(),
-                ]);
-
-                fputcsv($file, ['ERROR']);
-                fputcsv($file, ['Gagal mengambil data dari database']);
-            }
-
-            fclose($file);
-        }, 200, $headers);
+        // Menggunakan Trait streaming CSV dengan chunking (misal per 3.000 baris)
+        return $this->streamCsvFromQuery($filename, $columnsMap, $query, 3000);
     }
 
     private function resolvePeriod(Request $request): array
@@ -210,14 +204,5 @@ class DashboardController extends Controller
         }
 
         return [$tahun, $bulanAwal, $bulanAkhir];
-    }
-
-    private function flushOutputBuffer(): void
-    {
-        if (ob_get_level() > 0) {
-            ob_flush();
-        }
-
-        flush();
     }
 }
