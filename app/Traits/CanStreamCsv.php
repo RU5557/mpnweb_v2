@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 trait CanStreamCsv
 {
@@ -32,25 +33,30 @@ trait CanStreamCsv
 
             $hasData = false;
 
-            // Chunking per N-baris agar hemat memori RAM
-            $queryBuilder->chunk($chunkSize, function ($rows) use ($file, $columnsMap, &$hasData) {
-                foreach ($rows as $row) {
-                    $hasData = true;
-                    $rowData = [];
-                    foreach (array_keys($columnsMap) as $dbColumn) {
-                        $rowData[] = $row->{$dbColumn} ?? '';
+            try {
+                // Gunakan chunk() untuk efisiensi RAM
+                $queryBuilder->chunk($chunkSize, function ($rows) use ($file, $columnsMap, &$hasData) {
+                    foreach ($rows as $row) {
+                        $hasData = true;
+                        $rowData = [];
+                        foreach (array_keys($columnsMap) as $dbColumn) {
+                            $rowData[] = $row->{$dbColumn} ?? '';
+                        }
+                        fputcsv($file, $rowData);
                     }
-                    fputcsv($file, $rowData);
-                }
 
-                if (ob_get_level() > 0) {
-                    ob_flush();
-                }
-                flush();
-            });
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
+                    flush();
+                });
+            } catch (Throwable $e) {
+                // Log error atau abaikan jika koneksi terputus di tengah jalan
+                report($e);
+            }
 
             if (! $hasData) {
-                fputcsv($file, ['Tidak ada data transaksi']);
+                fputcsv($file, ['Tidak ada data ditemukan']);
             }
 
             fclose($file);
