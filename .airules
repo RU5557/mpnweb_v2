@@ -3,3 +3,5 @@
 3. tujuan utama tetap efisien, performa cepat, dan tidak membebankan memory php ataupun memory server serta I/O disk
 4. jangan pernah berasumsi, jika ada hal yang diperlukan atau dibutuhkan mintalah user untuk melampirkan hal yang dibutuhkan seperti file php, csv, txt atau apapun.
 5. sebelum menjawab, carilah rujukan penerapan kaidah laravel 12 terbaik sesuai dengan hal yang sedang didiskusikan
+6. export csv menggunakan service dan traits
+7. query builder ditaruh semua di repository

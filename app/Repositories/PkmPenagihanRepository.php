@@ -3,10 +3,10 @@
 namespace App\Repositories;
 
 use App\Models\SummaryPkm;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PkmPenagihanRepository
 {
@@ -17,7 +17,6 @@ class PkmPenagihanRepository
         string $sortColumn,
         string $sortDirection
     ): Collection {
-        // Map kolom sort
         $allowedSorts = [
             'nip_jspn' => 'nip_jspn',
             'nama_jspn' => 'nama_jspn',
@@ -49,7 +48,6 @@ class PkmPenagihanRepository
                 $query->where('sp.flag_skp', $dspcFilter);
             }
 
-            // Subquery wrapper agar grouping murni membaca ekspresi akhir 'Unassign' tanpa terpecah
             $subQuery = $query->select([
                 DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
                 DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE TRIM(p.nama) END as nama_jspn"),
@@ -71,83 +69,39 @@ class PkmPenagihanRepository
         });
     }
 
-    public function exportDetilCsv(int $tahun, int $bulan, string $dspcFilter): StreamedResponse
+    /**
+     * Mengembalikan Query Builder murni untuk ekspor CSV
+     */
+    public function getExportDetilQuery(int $tahun, int $bulan, string $dspcFilter): Builder
     {
-        $filename = "detil_pkm_penagihan_{$tahun}_{$bulan}.csv";
+        $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
 
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-            'Pragma' => 'no-cache',
-            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0',
-        ];
-
-        return response()->stream(function () use ($tahun, $bulan, $dspcFilter) {
-            set_time_limit(0);
-
-            $file = fopen('php://output', 'w');
-            fwrite($file, "\xEF\xBB\xBF");
-
-            fputcsv($file, [
-                'NO', 'NIP JSPN', 'NAMA JSPN', 'NPWP', 'NAMA WP',
-                'FLAG SKP', 'KD MAP', 'KD BAYAR', 'FUNGSI', 'BULAN', 'TAHUN', 'JUMLAH SETOR',
-            ]);
-
-            $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
-
-            $query = DB::table('drm as dt')
-                ->leftJoin('mfwp as mw', 'dt.npwp15', '=', 'mw.npwp15')
-                ->leftJoin('pegawai as p', function ($join) use ($tahunPegawai) {
-                    $join->on('mw.nip_js', '=', 'p.nip')
-                        ->where('p.tahun', '=', $tahunPegawai);
-                })
-                ->where('dt.fungsi', 'AKT PENAGIHAN')
-                ->where('dt.thn_setor', $tahun)
-                ->whereBetween('dt.bln_setor', [1, $bulan])
-                ->when($dspcFilter !== '', function ($q) use ($dspcFilter) {
-                    return $q->where('dt.flag_skp', $dspcFilter);
-                })
-                ->select([
-                    DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
-                    DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE TRIM(p.nama) END as nama_jspn"),
-                    'dt.npwp15',
-                    DB::raw("COALESCE(NULLIF(TRIM(mw.nama), ''), 'WP Tidak Terdaftar') as nama_wp"),
-                    DB::raw("COALESCE(NULLIF(TRIM(dt.flag_skp), ''), 'NON-DSPC') as flag_skp"),
-                    'dt.kd_map',
-                    'dt.kd_bayar',
-                    'dt.jml_setor',
-                    'dt.bln_setor',
-                    'dt.thn_setor',
-                    'dt.fungsi',
-                ])
-                ->orderBy('nama_jspn', 'asc')
-                ->orderBy('dt.bln_setor', 'asc');
-
-            $index = 1;
-            foreach ($query->cursor() as $row) {
-                fputcsv($file, [
-                    $index++,
-                    $row->nip_jspn,
-                    $row->nama_jspn,
-                    $row->npwp15,
-                    $row->nama_wp,
-                    $row->flag_skp,
-                    $row->kd_map,
-                    $row->kd_bayar,
-                    $row->fungsi,
-                    $row->bln_setor,
-                    $row->thn_setor,
-                    $row->jml_setor,
-                ]);
-
-                if ($index % 1000 === 0 && ob_get_level() > 0) {
-                    ob_flush();
-                    flush();
-                }
-            }
-
-            fclose($file);
-        }, 200, $headers);
+        return DB::table('drm as dt')
+            ->leftJoin('mfwp as mw', 'dt.npwp15', '=', 'mw.npwp15')
+            ->leftJoin('pegawai as p', function ($join) use ($tahunPegawai) {
+                $join->on('mw.nip_js', '=', 'p.nip')
+                    ->where('p.tahun', '=', $tahunPegawai);
+            })
+            ->where('dt.fungsi', 'AKT PENAGIHAN')
+            ->where('dt.thn_setor', $tahun)
+            ->whereBetween('dt.bln_setor', [1, $bulan])
+            ->when($dspcFilter !== '', function ($q) use ($dspcFilter) {
+                return $q->where('dt.flag_skp', $dspcFilter);
+            })
+            ->select([
+                DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
+                DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE TRIM(p.nama) END as nama_jspn"),
+                'dt.npwp15',
+                DB::raw("COALESCE(NULLIF(TRIM(mw.nama), ''), 'WP Tidak Terdaftar') as nama_wp"),
+                DB::raw("COALESCE(NULLIF(TRIM(dt.flag_skp), ''), 'NON-DSPC') as flag_skp"),
+                'dt.kd_map',
+                'dt.kd_bayar',
+                'dt.fungsi',
+                'dt.bln_setor',
+                'dt.thn_setor',
+                'dt.jml_setor',
+            ])
+            ->orderBy('nama_jspn', 'asc')
+            ->orderBy('dt.bln_setor', 'asc');
     }
 }

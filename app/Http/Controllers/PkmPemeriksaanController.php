@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\PkmPemeriksaanRepository;
+use App\Services\CsvExportService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -11,7 +12,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class PkmPemeriksaanController extends Controller
 {
     public function __construct(
-        protected PkmPemeriksaanRepository $repository
+        protected PkmPemeriksaanRepository $repository,
+        protected CsvExportService $csvExportService
     ) {}
 
     public function index(Request $request)
@@ -56,7 +58,23 @@ class PkmPemeriksaanController extends Controller
         [$tahun, $bulan] = $this->resolvePeriod($request);
         $search = trim((string) $request->input('search', ''));
 
-        return $this->repository->exportDetilCsv($tahun, $bulan, $search);
+        $filename = "detil_pkm_pemeriksaan_{$tahun}_{$bulan}.csv";
+        $columnsMap = [
+            'npwp15' => 'NPWP',
+            'nama_wp' => 'NAMA WP',
+            'kd_klu' => 'KD KLU',
+            'nm_klu' => 'NAMA KLU',
+            'kd_map' => 'KD MAP',
+            'kd_bayar' => 'KD BAYAR',
+            'fungsi' => 'FUNGSI',
+            'bln_setor' => 'BULAN',
+            'thn_setor' => 'TAHUN',
+            'jml_setor' => 'JUMLAH SETOR',
+        ];
+
+        $query = $this->repository->getExportDetilQuery($tahun, $bulan, $search);
+
+        return $this->csvExportService->exportFromQuery($filename, $columnsMap, $query);
     }
 
     private function resolvePeriod(Request $request): array
