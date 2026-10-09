@@ -7,7 +7,6 @@ use App\Http\Controllers\PenjagaanController;
 use App\Http\Controllers\PkmPemeriksaanController;
 use App\Http\Controllers\PkmPenagihanController;
 use App\Http\Controllers\PkmPengawasanController;
-use App\Http\Controllers\PpmController;
 use App\Http\Controllers\SptSearchController;
 use App\Http\Controllers\TransaksiController;
 use App\Http\Controllers\WpSearchController;
@@ -42,10 +41,7 @@ Route::get('/', function () {
 */
 Route::prefix('penerimaan')->name('penerimaan.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/ppm', [PpmController::class, 'index'])->name('ppm');
-    Route::get('/pkm-pengawasan', [PkmPengawasanController::class, 'index'])->name('pkmpengawasan');
-    Route::get('/pkm-pemeriksaan', [PkmPemeriksaanController::class, 'index'])->name('pkmpemeriksaan');
-    Route::get('/pkm-penagihan', [PkmPenagihanController::class, 'index'])->name('pkmpenagihan');
+    Route::get('/dashboard/export-detil', [DashboardController::class, 'exportDetil'])->name('dashboard.export-detil');
 
     // Grouping Route Penjagaan
     Route::prefix('penjagaan')->name('penjagaan.')->group(function () {
@@ -60,12 +56,24 @@ Route::prefix('penerimaan')->name('penerimaan.')->group(function () {
     });
 });
 
-// Route Export Data Detil Modul Lain
-Route::get('/dashboard/export-detil', [DashboardController::class, 'exportDetil'])->name('dashboard.export-detil');
-Route::get('/ppm/export-detil', [PpmController::class, 'exportDetil'])->name('ppm.export-detil');
-Route::get('/pkm-pengawasan/export-detil', [PkmPengawasanController::class, 'exportDetil'])->name('pkm.pengawasan.export-detil');
-Route::get('/pkm-pemeriksaan/export-detil', [PkmPemeriksaanController::class, 'exportDetil'])->name('pkm.pemeriksaan.export-detil');
-Route::get('/pkm-penagihan/export-detil', [PkmPenagihanController::class, 'exportDetil'])->name('pkm.penagihan.export-detil');
+/*
+|--------------------------------------------------------------------------
+| Modul PKM (Pengawasan, Pemeriksaan, Penagihan)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('pkm')->name('pkm.')->group(function () {
+    // 1. PKM Pengawasan
+    Route::get('/pengawasan', [PkmPengawasanController::class, 'index'])->name('pengawasan');
+    Route::get('/pengawasan/export-detil', [PkmPengawasanController::class, 'exportDetil'])->name('pengawasan.export-detil');
+
+    // 2. PKM Pemeriksaan
+    Route::get('/pemeriksaan', [PkmPemeriksaanController::class, 'index'])->name('pemeriksaan');
+    Route::get('/pemeriksaan/export-detil', [PkmPemeriksaanController::class, 'exportDetil'])->name('pemeriksaan.export-detil');
+
+    // 3. PKM Penagihan
+    Route::get('/penagihan', [PkmPenagihanController::class, 'index'])->name('penagihan');
+    Route::get('/penagihan/export-detil', [PkmPenagihanController::class, 'exportDetil'])->name('penagihan.export-detil');
+});
 
 /*
 |--------------------------------------------------------------------------

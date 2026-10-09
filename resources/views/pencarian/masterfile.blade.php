@@ -283,10 +283,10 @@
                                             </td>
                                             <td class="p-3.5 whitespace-nowrap">
                                                 <div class="text-xs font-semibold text-slate-800">AR: <span
-                                                        class="text-slate-600 font-normal">{{ $item->nama_ar ?? '-' }}</span>
+                                                        class="text-slate-600 font-normal">{{ $item->ar?->nama ?? '-' }}</span>
                                                 </div>
                                                 <div class="text-[11px] font-semibold text-slate-500">JS: <span
-                                                        class="text-slate-500 font-normal">{{ $item->nama_js ?? '-' }}</span>
+                                                        class="text-slate-500 font-normal">{{ $item->js?->nama ?? '-' }}</span>
                                                 </div>
                                             </td>
                                         </tr>

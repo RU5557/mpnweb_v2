@@ -3,15 +3,16 @@
 namespace App\Traits;
 
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 trait CanStreamCsv
 {
     /**
-     * Stream CSV Response dengan UTF-8 BOM dan auto-flush
+     * Stream CSV Response dari Query Builder menggunakan Chunking
      */
-    protected function streamCsvResponse(string $filename, array $headers, callable $callback): StreamedResponse
+    protected function streamCsvFromQuery(string $filename, array $columnsMap, $queryBuilder, int $chunkSize = 3000): StreamedResponse
     {
-        $responseHeaders = [
+        $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
             'Pragma' => 'no-cache',
@@ -19,20 +20,46 @@ trait CanStreamCsv
             'Expires' => '0',
         ];
 
-        return response()->stream(function () use ($headers, $callback) {
+        return response()->stream(function () use ($columnsMap, $queryBuilder, $chunkSize) {
             set_time_limit(0);
 
             $file = fopen('php://output', 'w');
-            fwrite($file, "\xEF\xBB\xBF"); // UTF-8 BOM untuk Microsoft Excel
 
-            if (! empty($headers)) {
-                fputcsv($file, $headers);
+            // UTF-8 BOM untuk Microsoft Excel
+            fwrite($file, "\xEF\xBB\xBF");
+
+            // Header CSV
+            fputcsv($file, array_values($columnsMap));
+
+            $hasData = false;
+
+            try {
+                // Gunakan chunk() untuk efisiensi RAM
+                $queryBuilder->chunk($chunkSize, function ($rows) use ($file, $columnsMap, &$hasData) {
+                    foreach ($rows as $row) {
+                        $hasData = true;
+                        $rowData = [];
+                        foreach (array_keys($columnsMap) as $dbColumn) {
+                            $rowData[] = $row->{$dbColumn} ?? '';
+                        }
+                        fputcsv($file, $rowData);
+                    }
+
+                    if (ob_get_level() > 0) {
+                        ob_flush();
+                    }
+                    flush();
+                });
+            } catch (Throwable $e) {
+                // Log error atau abaikan jika koneksi terputus di tengah jalan
+                report($e);
             }
 
-            // Jalankan callback untuk menulis isi baris CSV
-            $callback($file);
+            if (! $hasData) {
+                fputcsv($file, ['Tidak ada data ditemukan']);
+            }
 
             fclose($file);
-        }, 200, $responseHeaders);
+        }, 200, $headers);
     }
 }

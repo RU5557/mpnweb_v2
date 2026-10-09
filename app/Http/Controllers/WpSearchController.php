@@ -3,41 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\WpRepository;
+use App\Services\CsvExportService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WpSearchController extends Controller
 {
-    protected WpRepository $wpRepository;
+    public function __construct(
+        protected WpRepository $wpRepository,
+        protected CsvExportService $csvExportService
+    ) {}
 
-    public function __construct(WpRepository $wpRepository)
-    {
-        $this->wpRepository = $wpRepository;
-    }
-
-    /**
-     * Halaman & Pencarian Masterfile WP
-     */
     public function searchMasterfile(Request $request)
     {
         $tahun = (int) date('Y');
         $filters = $request->all();
 
-        // 1. Ambil pilihan Dropdown Filter dari Repository (Cached)
         $dropdowns = $this->wpRepository->getFilterDropdownOptions($tahun);
-
-        // 2. Cek apakah ada pencarian
         $hasSearch = $request->has('has_search');
 
-        // 3. Ambil data hasil pencarian paginasi jika form di-submit
         $results = null;
         if ($hasSearch) {
             $results = $this->wpRepository->searchMasterfilePaginated($filters, 20, $tahun);
             $results->appends($filters);
         }
 
-        // 4. Tangkap variabel filter untuk dikirimkan ke Blade View
-        // (Hapus baris `$results = 'results';` yang salah tadi)
         $npwpInput = trim((string) $request->get('npwp'));
         $namaWp = trim((string) $request->get('nama'));
         $klu = $request->get('klu');
@@ -53,19 +43,47 @@ class WpSearchController extends Controller
         $sortOrder = strtolower($request->get('sort_order', 'asc')) === 'desc' ? 'desc' : 'asc';
 
         return view('pencarian.masterfile', array_merge($dropdowns, compact(
-            'hasSearch', 'results', 'npwpInput', 'namaWp', 'klu', 'kelurahan', 'kecamatan',
-            'jenis', 'status', 'tglDaftarAwal', 'tglDaftarAkhir', 'nipAr', 'nipJs',
-            'sortBy', 'sortOrder'
+            'hasSearch',
+            'results',
+            'npwpInput',
+            'namaWp',
+            'klu',
+            'kelurahan',
+            'kecamatan',
+            'jenis',
+            'status',
+            'tglDaftarAwal',
+            'tglDaftarAkhir',
+            'nipAr',
+            'nipJs',
+            'sortBy',
+            'sortOrder'
         )));
     }
 
-    /**
-     * Export CSV Masterfile
-     */
     public function exportMasterfileCsv(Request $request): StreamedResponse
     {
-        set_time_limit(0);
+        $tahun = (int) date('Y');
+        $filters = $request->all();
+        $filename = 'export_masterfile_'.date('Ymd_His').'.csv';
 
-        return $this->wpRepository->exportMasterfileCsv($request->all());
+        $columnsMap = [
+            'npwp15' => 'NPWP15',
+            'npwp16' => 'NPWP16',
+            'nama' => 'Nama Wajib Pajak',
+            'klu' => 'KLU',
+            'alamat' => 'Alamat',
+            'kelurahan' => 'Kelurahan',
+            'kecamatan' => 'Kecamatan',
+            'jenis' => 'Jenis WP',
+            'status' => 'Status WP',
+            'tanggal_daftar' => 'Tgl Daftar',
+            'nama_ar' => 'Nama AR',
+            'nama_js' => 'Nama JS',
+        ];
+
+        $queryBuilder = $this->wpRepository->buildExportBaseQuery($filters, $tahun);
+
+        return $this->csvExportService->exportFromQuery($filename, $columnsMap, $queryBuilder, 2000);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\PkmPemeriksaanRepository;
+use App\Services\CsvExportService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -11,12 +12,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class PkmPemeriksaanController extends Controller
 {
     public function __construct(
-        protected PkmPemeriksaanRepository $repository
+        protected PkmPemeriksaanRepository $repository,
+        protected CsvExportService $csvExportService
     ) {}
 
-    /**
-     * Tampilkan Ringkasan PKM Pemeriksaan per Wajib Pajak
-     */
     public function index(Request $request)
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
@@ -45,7 +44,7 @@ class PkmPemeriksaanController extends Controller
             abort(503, 'Data PKM Pemeriksaan sedang tidak tersedia. Silakan coba lagi.');
         }
 
-        return view('penerimaan.pkmpemeriksaan', compact(
+        return view('pkm.pemeriksaan', compact(
             'pkmData',
             'sortColumn',
             'sortDirection',
@@ -54,20 +53,30 @@ class PkmPemeriksaanController extends Controller
         ));
     }
 
-    /**
-     * Handle Export CSV Detil Transaksi Pemeriksaan
-     */
     public function exportDetil(Request $request): StreamedResponse
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
         $search = trim((string) $request->input('search', ''));
 
-        return $this->repository->exportDetilCsv($tahun, $bulan, $search);
+        $filename = "detil_pkm_pemeriksaan_{$tahun}_{$bulan}.csv";
+        $columnsMap = [
+            'npwp15' => 'NPWP',
+            'nama_wp' => 'NAMA WP',
+            'kd_klu' => 'KD KLU',
+            'nm_klu' => 'NAMA KLU',
+            'kd_map' => 'KD MAP',
+            'kd_bayar' => 'KD BAYAR',
+            'fungsi' => 'FUNGSI',
+            'bln_setor' => 'BULAN',
+            'thn_setor' => 'TAHUN',
+            'jml_setor' => 'JUMLAH SETOR',
+        ];
+
+        $query = $this->repository->getExportDetilQuery($tahun, $bulan, $search);
+
+        return $this->csvExportService->exportFromQuery($filename, $columnsMap, $query);
     }
 
-    /**
-     * Helper resolusi periode tahun & bulan
-     */
     private function resolvePeriod(Request $request): array
     {
         $tahun = (int) $request->input('tahun', date('Y'));

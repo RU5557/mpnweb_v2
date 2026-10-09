@@ -8,11 +8,17 @@ use Illuminate\Support\Facades\DB;
 
 class RebuildSummaryMart extends Command
 {
+    /**
+     * Nama dan tanda tangan dari console command.
+     */
     protected $signature = 'summary:rebuild 
-                            {--thnsetor= : Filter tahun setor} 
-                            {--blnsetor= : Filter bulan setor}';
+                            {--thnsetor= : Filter tahun setor (contoh: 2026)} 
+                            {--blnsetor= : Filter bulan setor (contoh: 09 atau 9)}';
 
-    protected $description = 'Rekapitulasi total penerimaan ke summary_mart_penerimaan menggunakan teknik Temp-Table Swap atau Partial Sync';
+    /**
+     * Deskripsi console command.
+     */
+    protected $description = 'Rekapitulasi total penerimaan dari tabel drm ke summary_mart_penerimaan menggunakan teknik Temp-Table Swap atau Partial Sync';
 
     public function handle()
     {
@@ -29,14 +35,19 @@ class RebuildSummaryMart extends Command
         return $this->rebuildFull($startTime);
     }
 
+    /**
+     * Full Rebuild menggunakan teknik Atomic Table Swapping (Zero Downtime)
+     */
     private function rebuildFull($startTime)
     {
         try {
             $now = now()->toDateTimeString();
 
-            DB::statement('CREATE TABLE IF NOT EXISTS summary_mart_penerimaan_temp LIKE summary_mart_penerimaan;');
-            DB::statement('TRUNCATE TABLE summary_mart_penerimaan_temp;');
+            // 1. Buat tabel temp dengan struktur persis summary_mart_penerimaan
+            DB::statement('DROP TABLE IF EXISTS summary_mart_penerimaan_temp;');
+            DB::statement('CREATE TABLE summary_mart_penerimaan_temp LIKE summary_mart_penerimaan;');
 
+            // 2. Agregasikan data dari tabel drm ke summary_mart_penerimaan_temp
             DB::statement("
                 INSERT INTO summary_mart_penerimaan_temp (
                     thn_setor, bln_setor, jenis, fungsi, total_setor, total_transaksi, created_at, updated_at
@@ -46,21 +57,20 @@ class RebuildSummaryMart extends Command
                     bln_setor,
                     UPPER(TRIM(COALESCE(jenis, ''))) AS jenis,
                     UPPER(TRIM(COALESCE(fungsi, ''))) AS fungsi,
-                    SUM(jml_setor) AS total_setor,
+                    COALESCE(SUM(jml_setor), 0) AS total_setor,
                     COUNT(*) AS total_transaksi,
                     '{$now}',
                     '{$now}'
-                FROM detil_transaksi_wp
+                FROM drm
                 GROUP BY thn_setor, bln_setor, UPPER(TRIM(COALESCE(jenis, ''))), UPPER(TRIM(COALESCE(fungsi, '')))
             ");
 
-            DB::statement('CREATE TABLE IF NOT EXISTS summary_mart_penerimaan_old LIKE summary_mart_penerimaan;');
-
+            // 3. Swap Table Atomik di MariaDB (Zero Downtime untuk Dashboard)
+            DB::statement('DROP TABLE IF EXISTS summary_mart_penerimaan_old;');
             DB::statement('RENAME TABLE 
                 summary_mart_penerimaan TO summary_mart_penerimaan_old,
                 summary_mart_penerimaan_temp TO summary_mart_penerimaan;
             ');
-
             DB::statement('DROP TABLE IF EXISTS summary_mart_penerimaan_old;');
 
             $executionTime = round(microtime(true) - $startTime, 2);
@@ -69,7 +79,12 @@ class RebuildSummaryMart extends Command
             return Command::SUCCESS;
 
         } catch (Exception $e) {
-            $this->warn('   [!] Menjalankan fallback direct rebuild...');
+            $this->warn('   [!] Swapping gagal ('.$e->getMessage().'), menjalankan fallback direct rebuild...');
+
+            // Cleanup jika terjadi kegagalan saat swapping
+            DB::statement('DROP TABLE IF EXISTS summary_mart_penerimaan_temp;');
+            DB::statement('DROP TABLE IF EXISTS summary_mart_penerimaan_old;');
+
             try {
                 $now = now()->toDateTimeString();
                 DB::statement('TRUNCATE TABLE summary_mart_penerimaan;');
@@ -78,11 +93,15 @@ class RebuildSummaryMart extends Command
                         thn_setor, bln_setor, jenis, fungsi, total_setor, total_transaksi, created_at, updated_at
                     )
                     SELECT 
-                        thn_setor, bln_setor, 
+                        thn_setor, 
+                        bln_setor, 
                         UPPER(TRIM(COALESCE(jenis, ''))), 
                         UPPER(TRIM(COALESCE(fungsi, ''))), 
-                        SUM(jml_setor), COUNT(*), '{$now}', '{$now}'
-                    FROM detil_transaksi_wp
+                        COALESCE(SUM(jml_setor), 0), 
+                        COUNT(*), 
+                        '{$now}', 
+                        '{$now}'
+                    FROM drm
                     GROUP BY thn_setor, bln_setor, UPPER(TRIM(COALESCE(jenis, ''))), UPPER(TRIM(COALESCE(fungsi, '')))
                 ");
 
@@ -95,11 +114,15 @@ class RebuildSummaryMart extends Command
         }
     }
 
+    /**
+     * Partial Rebuild berdasarkan filter Periode (Tahun / Bulan)
+     */
     private function rebuildPartial($thnSetor, $blnSetor, $startTime)
     {
         try {
             $now = now()->toDateTimeString();
             $whereConditions = [];
+
             if (! empty($thnSetor)) {
                 $whereConditions[] = 'thn_setor = '.(int) $thnSetor;
             }
@@ -109,8 +132,10 @@ class RebuildSummaryMart extends Command
 
             $whereSql = ' WHERE '.implode(' AND ', $whereConditions);
 
+            // Hapus rekapitulasi pada periode terpilih saja
             DB::statement("DELETE FROM summary_mart_penerimaan{$whereSql};");
 
+            // Rekap ulang periode terpilih dari drm
             DB::statement("
                 INSERT INTO summary_mart_penerimaan (
                     thn_setor, bln_setor, jenis, fungsi, total_setor, total_transaksi, created_at, updated_at
@@ -120,11 +145,11 @@ class RebuildSummaryMart extends Command
                     bln_setor,
                     UPPER(TRIM(COALESCE(jenis, ''))) AS jenis,
                     UPPER(TRIM(COALESCE(fungsi, ''))) AS fungsi,
-                    SUM(jml_setor) AS total_setor,
+                    COALESCE(SUM(jml_setor), 0) AS total_setor,
                     COUNT(*) AS total_transaksi,
                     '{$now}',
                     '{$now}'
-                FROM detil_transaksi_wp
+                FROM drm
                 {$whereSql}
                 GROUP BY thn_setor, bln_setor, UPPER(TRIM(COALESCE(jenis, ''))), UPPER(TRIM(COALESCE(fungsi, '')))
             ");

@@ -2,129 +2,140 @@
 
 namespace App\Repositories;
 
-use App\Models\MasterfileWp;
+use App\Models\Mfwp;
 use App\Models\Pegawai;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as BaseQueryBuilder;
 use Illuminate\Support\Facades\Cache;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WpRepository
 {
     /**
-     * Mendapatkan Cache Option untuk Dropdown Filter
+     * Cache pilihan dropdown filter.
      */
     public function getFilterDropdownOptions(int $tahun): array
     {
         return [
-            'listKlu' => Cache::remember('mf_filter_klu', 3600, fn () => MasterfileWp::whereNotNull('klu')->where('klu', '!=', '')->distinct()->orderBy('klu', 'asc')->pluck('klu')->toArray()
+            'listKlu' => Cache::remember('mf_filter_klu', 3600, fn () => Mfwp::whereNotNull('klu')->where('klu', '!=', '')->distinct()->orderBy('klu', 'asc')->pluck('klu')->toArray()
             ),
-            'listKelurahan' => Cache::remember('mf_filter_kelurahan', 3600, fn () => MasterfileWp::whereNotNull('kelurahan')->where('kelurahan', '!=', '')->distinct()->orderBy('kelurahan', 'asc')->pluck('kelurahan')->toArray()
+            'listKelurahan' => Cache::remember('mf_filter_kelurahan', 3600, fn () => Mfwp::whereNotNull('kelurahan')->where('kelurahan', '!=', '')->distinct()->orderBy('kelurahan', 'asc')->pluck('kelurahan')->toArray()
             ),
-            'listKecamatan' => Cache::remember('mf_filter_kecamatan', 3600, fn () => MasterfileWp::whereNotNull('kecamatan')->where('kecamatan', '!=', '')->distinct()->orderBy('kecamatan', 'asc')->pluck('kecamatan')->toArray()
+            'listKecamatan' => Cache::remember('mf_filter_kecamatan', 3600, fn () => Mfwp::whereNotNull('kecamatan')->where('kecamatan', '!=', '')->distinct()->orderBy('kecamatan', 'asc')->pluck('kecamatan')->toArray()
             ),
-            'listJenis' => Cache::remember('mf_filter_jenis', 3600, fn () => MasterfileWp::whereNotNull('jenis')->where('jenis', '!=', '')->distinct()->orderBy('jenis', 'asc')->pluck('jenis')->toArray()
+            'listJenis' => Cache::remember('mf_filter_jenis', 3600, fn () => Mfwp::whereNotNull('jenis')->where('jenis', '!=', '')->distinct()->orderBy('jenis', 'asc')->pluck('jenis')->toArray()
             ),
-            'listStatus' => Cache::remember('mf_filter_status', 3600, fn () => MasterfileWp::whereNotNull('status')->where('status', '!=', '')->distinct()->orderBy('status', 'asc')->pluck('status')->toArray()
+            'listStatus' => Cache::remember('mf_filter_status', 3600, fn () => Mfwp::whereNotNull('status')->where('status', '!=', '')->distinct()->orderBy('status', 'asc')->pluck('status')->toArray()
             ),
-            'listAr' => Cache::remember('filter_ar_jabatan_5_'.$tahun, 3600, fn () => Pegawai::where('jabatan', 5)->where('tahun', $tahun)->select('nip', 'nama')->orderBy('nama', 'asc')->get()
+            'listAr' => Cache::remember("filter_ar_jabatan_5_{$tahun}", 3600, fn () => Pegawai::where('jabatan', 5)->where('tahun', $tahun)->select('nip', 'nama')->orderBy('nama', 'asc')->get()
             ),
-            'listJs' => Cache::remember('filter_js_jabatan_11_'.$tahun, 3600, fn () => Pegawai::where('jabatan', 11)->where('tahun', $tahun)->select('nip', 'nama')->orderBy('nama', 'asc')->get()
+            'listJs' => Cache::remember("filter_js_jabatan_11_{$tahun}", 3600, fn () => Pegawai::where('jabatan', 11)->where('tahun', $tahun)->select('nip', 'nama')->orderBy('nama', 'asc')->get()
             ),
         ];
     }
 
     /**
-     * Build Base Query Masterfile WP dengan seluruh filter
+     * Membangun Eloquent Query Builder untuk Masterfile WP.
      */
     public function buildMasterfileQuery(array $filters): Builder
     {
-        $query = MasterfileWp::query();
+        $query = Mfwp::query();
 
-        // 1. Filter NPWP Presisi (Prefix Search)
+        // 1. Filter NPWP
         if (! empty($filters['npwp'])) {
             $cleanNpwp = preg_replace('/[^0-9]/', '', (string) $filters['npwp']);
             if ($cleanNpwp !== '') {
                 $query->where(function ($q) use ($cleanNpwp) {
-                    $q->where('npwp15', 'LIKE', "{$cleanNpwp}%")
-                        ->orWhere('npwp16', 'LIKE', "{$cleanNpwp}%");
+                    $q->where('mfwp.npwp15', 'LIKE', "{$cleanNpwp}%")
+                        ->orWhere('mfwp.npwp16', 'LIKE', "{$cleanNpwp}%");
                 });
             }
         }
 
-        // 2. Filter Fulltext Match Nama WP
+        // 2. Filter Nama WP (Fulltext Match dengan Fallback ke LIKE jika kata < 4 karakter)
         if (! empty($filters['nama'])) {
             $nama = trim((string) $filters['nama']);
             $words = array_filter(explode(' ', $nama));
-            if (! empty($words)) {
+
+            // Cek apakah ada kata yang panjangnya kurang dari 4 karakter
+            $hasShortWord = false;
+            foreach ($words as $word) {
+                if (mb_strlen($word) < 4) {
+                    $hasShortWord = true;
+                    break;
+                }
+            }
+
+            if ($hasShortWord || empty($words)) {
+                // Fallback ke LIKE jika kata kunci pendek (< 4 huruf, misal "jnl")
+                $query->where('mfwp.nama', 'LIKE', "%{$nama}%");
+            } else {
+                // Gunakan Fulltext Search jika kata >= 4 karakter
                 $searchPhrase = '+'.implode(' +', $words).'*';
-                $query->whereRaw('MATCH(nama) AGAINST(? IN BOOLEAN MODE)', [$searchPhrase]);
+                $query->whereRaw('MATCH(mfwp.nama) AGAINST(? IN BOOLEAN MODE)', [$searchPhrase]);
             }
         }
 
-        // 3. Filter Exact Match (Wilayah & Status)
+        // 3. Exact Filter
         if (! empty($filters['klu'])) {
-            $query->where('klu', $filters['klu']);
+            $query->where('mfwp.klu', $filters['klu']);
         }
         if (! empty($filters['kelurahan'])) {
-            $query->where('kelurahan', $filters['kelurahan']);
+            $query->where('mfwp.kelurahan', $filters['kelurahan']);
         }
         if (! empty($filters['kecamatan'])) {
-            $query->where('kecamatan', $filters['kecamatan']);
+            $query->where('mfwp.kecamatan', $filters['kecamatan']);
         }
         if (! empty($filters['jenis'])) {
-            $query->where('jenis', $filters['jenis']);
+            $query->where('mfwp.jenis', $filters['jenis']);
         }
         if (! empty($filters['status'])) {
-            $query->where('status', $filters['status']);
+            $query->where('mfwp.status', $filters['status']);
         }
 
-        // 4. Filter Range Tanggal Daftar
+        // 4. Range Tanggal Daftar
         $tglAwal = $filters['tgl_daftar_awal'] ?? null;
         $tglAkhir = $filters['tgl_daftar_akhir'] ?? null;
 
         if (! empty($tglAwal) && ! empty($tglAkhir)) {
-            $query->whereBetween('tanggal_daftar', [$tglAwal, $tglAkhir]);
+            $query->whereBetween('mfwp.tanggal_daftar', [$tglAwal, $tglAkhir]);
         } elseif (! empty($tglAwal)) {
-            $query->where('tanggal_daftar', '>=', $tglAwal);
+            $query->where('mfwp.tanggal_daftar', '>=', $tglAwal);
         } elseif (! empty($tglAkhir)) {
-            $query->where('tanggal_daftar', '<=', $tglAkhir);
+            $query->where('mfwp.tanggal_daftar', '<=', $tglAkhir);
         }
 
         // 5. Filter AR & JS
         if (! empty($filters['nip_ar'])) {
-            $query->where('nip_ar', $filters['nip_ar']);
+            $query->where('mfwp.nip_ar', $filters['nip_ar']);
         }
         if (! empty($filters['nip_js'])) {
-            $query->where('nip_js', $filters['nip_js']);
+            $query->where('mfwp.nip_js', $filters['nip_js']);
         }
 
         return $query;
     }
 
     /**
-     * Pencarian Masterfile WP dengan Paginasi Cepat
+     * Pencarian Masterfile WP dengan Paginasi Tampilan.
      */
     public function searchMasterfilePaginated(array $filters, int $perPage = 20, ?int $tahun = null): LengthAwarePaginator
     {
         $tahun = $tahun ?? (int) date('Y');
         $query = $this->buildMasterfileQuery($filters);
 
-        // Sorting
         $allowedSorts = ['npwp15', 'nama', 'jenis', 'tanggal_daftar'];
         $sortBy = $filters['sort_by'] ?? 'nama';
         $sortOrder = strtolower($filters['sort_order'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 
         if (in_array($sortBy, $allowedSorts, true)) {
-            $query->orderBy($sortBy, $sortOrder);
+            $query->orderBy("mfwp.{$sortBy}", $sortOrder);
         } else {
-            $query->orderBy('nama', 'asc');
+            $query->orderBy('mfwp.nama', 'asc');
         }
 
-        // Execute Pagination
         $results = $query->paginate($perPage);
 
-        // Eager Load Relasi AR & JS HANYA untuk item yang terpilih di halaman aktif
         $results->getCollection()->load([
             'ar' => fn ($q) => $q->where('tahun', $tahun),
             'js' => fn ($q) => $q->where('tahun', $tahun),
@@ -134,80 +145,53 @@ class WpRepository
     }
 
     /**
-     * Export CSV Masterfile WP menggunakan Stream & Cursor (Optimized & Timeout-Free)
+     * Membangun Base DB Query Builder dengan Left Join Pegawai untuk CsvExportService.
      */
-    public function exportMasterfileCsv(array $filters, ?int $tahun = null): StreamedResponse
+    public function buildExportBaseQuery(array $filters, int $tahun): BaseQueryBuilder
     {
-        $tahun = $tahun ?? (int) date('Y');
-        $fileName = 'export_masterfile_'.date('Ymd_His').'.csv';
+        $eloquentQuery = $this->buildMasterfileQuery($filters);
 
-        $headers = [
-            'Content-type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename={$fileName}",
-            'Pragma' => 'no-cache',
-            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0',
-        ];
+        // Konversi ke Query\Builder
+        $baseQuery = $eloquentQuery->getQuery();
 
-        // 1. Ambil Map Pegawai (NIP => Nama) dari Cache untuk eliminasi LEFT JOIN
-        $pegawaiMap = Cache::remember("pegawai_map_{$tahun}", 3600, function () use ($tahun) {
-            return Pegawai::where('tahun', $tahun)->pluck('nama', 'nip')->toArray();
-        });
+        // Select atribut spesifik dan JOIN ke tabel pegawai
+        $baseQuery->select([
+            'mfwp.npwp15',
+            'mfwp.npwp16',
+            'mfwp.nama',
+            'mfwp.klu',
+            'mfwp.alamat',
+            'mfwp.kelurahan',
+            'mfwp.kecamatan',
+            'mfwp.jenis',
+            'mfwp.status',
+            'mfwp.tanggal_daftar',
+            'peg_ar.nama as nama_ar',
+            'peg_js.nama as nama_js',
+        ])
+            ->leftJoin('pegawai as peg_ar', function ($join) use ($tahun) {
+                $join->on('mfwp.nip_ar', '=', 'peg_ar.nip')
+                    ->where('peg_ar.tahun', '=', $tahun);
+            })
+            ->leftJoin('pegawai as peg_js', function ($join) use ($tahun) {
+                $join->on('mfwp.nip_js', '=', 'peg_js.nip')
+                    ->where('peg_js.tahun', '=', $tahun);
+            });
 
-        return response()->stream(function () use ($filters, $pegawaiMap) {
-            set_time_limit(0); // Mencegah PHP Max Execution Time
+        // Ordering untuk chunking
+        $allowedSorts = ['npwp15', 'nama', 'jenis', 'tanggal_daftar'];
+        $sortBy = $filters['sort_by'] ?? 'nama';
+        $sortOrder = strtolower($filters['sort_order'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
 
-            $file = fopen('php://output', 'w');
-            fwrite($file, "\xEF\xBB\xBF"); // UTF-8 BOM untuk MS Excel
+        if (in_array($sortBy, $allowedSorts, true)) {
+            $baseQuery->orderBy("mfwp.{$sortBy}", $sortOrder);
+        } else {
+            $baseQuery->orderBy('mfwp.nama', 'asc');
+        }
 
-            fputcsv($file, [
-                'NPWP', 'NPWP15', 'NPWP16', 'Nama WP', 'KLU', 'Alamat',
-                'Kelurahan', 'Kecamatan', 'Jenis WP', 'Status WP',
-                'Tgl Daftar', 'AR', 'JS',
-            ]);
+        // Primary Key tie-breaker agar offset chunking konsisten
+        $baseQuery->orderBy('mfwp.npwp15', 'asc');
 
-            // 2. Murni gunakan Base Query tanpa JOIN berat
-            $query = $this->buildMasterfileQuery($filters);
-
-            // Sorting jika ada
-            $allowedSorts = ['npwp15', 'nama', 'jenis', 'tanggal_daftar'];
-            $sortBy = $filters['sort_by'] ?? 'nama';
-            $sortOrder = strtolower($filters['sort_order'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
-
-            if (in_array($sortBy, $allowedSorts, true)) {
-                $query->orderBy($sortBy, $sortOrder);
-            }
-
-            $index = 0;
-            // 3. Loop cursor() efisien & kueri super cepat
-            foreach ($query->cursor() as $item) {
-                $namaAr = ! empty($item->nip_ar) ? ($pegawaiMap[$item->nip_ar] ?? '-') : '-';
-                $namaJs = ! empty($item->nip_js) ? ($pegawaiMap[$item->nip_js] ?? '-') : '-';
-
-                fputcsv($file, [
-                    ! empty($item->npwp15) ? $item->npwp15 : ($item->npwp ?? ''),
-                    ! empty($item->npwp15) ? $item->npwp15 : '',
-                    ! empty($item->npwp16) ? $item->npwp16 : '',
-                    $item->nama,
-                    $item->klu,
-                    $item->alamat,
-                    $item->kelurahan,
-                    $item->kecamatan,
-                    $item->jenis,
-                    $item->status,
-                    $item->tanggal_daftar,
-                    $namaAr,
-                    $namaJs,
-                ]);
-
-                $index++;
-                if ($index % 1000 === 0 && ob_get_level() > 0) {
-                    ob_flush();
-                    flush();
-                }
-            }
-
-            fclose($file);
-        }, 200, $headers);
+        return $baseQuery;
     }
 }

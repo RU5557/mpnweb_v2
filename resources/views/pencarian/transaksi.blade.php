@@ -75,6 +75,44 @@
                             class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
                     </div>
 
+                    <!-- Filter Masa1, Masa2 & Thn Pajak Dalam 1 Baris -->
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Masa Awal</label>
+                            <select name="masa1"
+                                class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl px-2 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">-</option>
+                                @for ($m = 1; $m <= 12; $m++)
+                                    <option value="{{ $m }}"
+                                        {{ (int) ($masa1 ?? 0) === $m ? 'selected' : '' }}>
+                                        {{ sprintf('%02d', $m) }}
+                                    </option>
+                                @endfor
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Masa Akhir</label>
+                            <select name="masa2"
+                                class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl px-2 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">-</option>
+                                @for ($m = 1; $m <= 12; $m++)
+                                    <option value="{{ $m }}"
+                                        {{ (int) ($masa2 ?? 0) === $m ? 'selected' : '' }}>
+                                        {{ sprintf('%02d', $m) }}
+                                    </option>
+                                @endfor
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Thn Pajak</label>
+                            <input type="number" name="thn_pajak" value="{{ $thnPajak ?? '' }}" placeholder="2025"
+                                min="2000" max="2099"
+                                class="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl px-2 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
                     <!-- NTPN -->
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 mb-1">NTPN</label>
@@ -253,6 +291,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
+                                    <!-- Bagian Loop Tabel Body -->
                                     @forelse($results as $item)
                                         <tr class="hover:bg-blue-50/40 transition odd:bg-white even:bg-slate-50/50">
                                             <td class="p-3.5 whitespace-nowrap text-xs font-medium text-slate-600">
@@ -276,7 +315,9 @@
                                                 </div>
                                             </td>
                                             <td class="p-3.5 whitespace-nowrap text-xs text-slate-600">
-                                                Masa {{ $item->masa_pajak ?? '-' }} / {{ $item->thn_pajak ?? '-' }}
+                                                Masa
+                                                {{ str_pad($item->masa1, 2, '0', STR_PAD_LEFT) }}-{{ str_pad($item->masa2, 2, '0', STR_PAD_LEFT) }}
+                                                / {{ $item->thn_pajak ?? '-' }}
                                             </td>
                                             <td
                                                 class="p-3.5 text-right font-semibold text-emerald-600 whitespace-nowrap text-sm">

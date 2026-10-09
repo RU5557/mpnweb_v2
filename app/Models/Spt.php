@@ -5,13 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class SptCoretax extends Model
+class Spt extends Model
 {
     use HasFactory;
 
-    protected $table = 'spt_coretax';
+    protected $table = 'spt';
 
     public $timestamps = false;
+
+    public $incrementing = false;
+
+    protected $primaryKey = null;
 
     protected $fillable = [
         'tahun',
@@ -37,11 +41,15 @@ class SptCoretax extends Model
         'kpp_penerima',
     ];
 
-    /**
-     * Relasi ke Masterfile WP melalui klausa NPWP
-     */
-    public function masterfile()
+    protected function casts(): array
     {
-        return $this->belongsTo(MasterfileWp::class, 'npwp', 'npwp16');
+        return [
+            'tahun' => 'integer',
+            'bulan' => 'integer',
+            'masa1' => 'integer',
+            'masa2' => 'integer',
+            'thn_pajak' => 'integer',
+            'tgl_terima' => 'date',
+        ];
     }
 }

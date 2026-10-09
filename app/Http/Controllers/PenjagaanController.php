@@ -3,18 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\PenjagaanRepository;
+use App\Services\CsvExportService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PenjagaanController extends Controller
 {
+    protected array $penjagaanColumnsMap = [
+        'thn_setor' => 'Tahun Setor',
+        'bln_setor' => 'Bulan Setor',
+        'tgl_setor' => 'Tanggal Setor',
+        'npwp15' => 'NPWP15',
+        'nama_wp' => 'Nama WP',
+        'jenis' => 'Jenis',
+        'fungsi' => 'Fungsi',
+        'kd_map' => 'Kode MAP',
+        'kd_bayar' => 'Kode Bayar',
+        'masa1' => 'Masa 1',
+        'masa2' => 'Masa 2',
+        'thn_pajak' => 'Tahun Pajak',
+        'jml_setor' => 'Jumlah Setor (Rp)',
+        'ntpn' => 'NTPN',
+    ];
+
     public function __construct(
-        protected PenjagaanRepository $repository
+        protected PenjagaanRepository $repository,
+        protected CsvExportService $csvExportService
     ) {}
 
-    /**
-     * Resolusi filter fungsi dari Request
-     */
     private function resolveFungsi(Request $request): array
     {
         $fungsiOptions = $this->repository->getFungsiOptions();
@@ -28,7 +44,6 @@ class PenjagaanController extends Controller
         return $fungsiOptions->toArray();
     }
 
-    // 1. Penjagaan Bulanan
     public function bulanan(Request $request)
     {
         $fungsiOptions = $this->repository->getFungsiOptions();
@@ -53,7 +68,6 @@ class PenjagaanController extends Controller
         ));
     }
 
-    // 2. Penjagaan Harian
     public function harian(Request $request)
     {
         $bulan = (int) $request->input('bulan', date('m'));
@@ -79,7 +93,6 @@ class PenjagaanController extends Controller
         ));
     }
 
-    // 3. Penjagaan vs Bulan Lalu
     public function vsBulanLalu(Request $request)
     {
         $bulan = (int) $request->input('bulan', date('m'));
@@ -114,14 +127,9 @@ class PenjagaanController extends Controller
         $tahunLalu = $tahunIni - 1;
 
         $filename = 'penjagaan_bulanan_detil_'.date('Ymd_His').'.csv';
+        $query = $this->repository->getExportBulananQuery($fungsi, $tahunIni, $tahunLalu, array_keys($this->penjagaanColumnsMap));
 
-        return $this->repository->exportCsv($filename, function ($query) use ($fungsi, $tahunIni, $tahunLalu) {
-            $query->whereIn('thn_setor', [$tahunLalu, $tahunIni]);
-            if (! empty($fungsi)) {
-                $query->whereIn('fungsi', $fungsi);
-            }
-            $query->orderBy('thn_setor', 'desc')->orderBy('bln_setor', 'desc');
-        });
+        return $this->csvExportService->exportFromQuery($filename, $this->penjagaanColumnsMap, $query);
     }
 
     public function exportHarianCsv(Request $request): StreamedResponse
@@ -132,15 +140,9 @@ class PenjagaanController extends Controller
         $tahunLalu = $tahunIni - 1;
 
         $filename = 'penjagaan_harian_detil_bln_'.$bulan.'_'.date('Ymd_His').'.csv';
+        $query = $this->repository->getExportHarianQuery($bulan, $fungsi, $tahunIni, $tahunLalu, array_keys($this->penjagaanColumnsMap));
 
-        return $this->repository->exportCsv($filename, function ($query) use ($bulan, $fungsi, $tahunIni, $tahunLalu) {
-            $query->whereIn('thn_setor', [$tahunLalu, $tahunIni])
-                ->where('bln_setor', $bulan);
-            if (! empty($fungsi)) {
-                $query->whereIn('fungsi', $fungsi);
-            }
-            $query->orderBy('tgl_setor', 'desc');
-        });
+        return $this->csvExportService->exportFromQuery($filename, $this->penjagaanColumnsMap, $query);
     }
 
     public function exportVsBulanLaluCsv(Request $request): StreamedResponse
@@ -153,21 +155,8 @@ class PenjagaanController extends Controller
         $tahunBulanLalu = $bulan == 1 ? $tahunIni - 1 : $tahunIni;
 
         $filename = 'penjagaan_vs_bulan_lalu_bln_'.$bulan.'_'.date('Ymd_His').'.csv';
+        $query = $this->repository->getExportVsBulanLaluQuery($bulan, $bulanLalu, $tahunIni, $tahunBulanLalu, $fungsi, array_keys($this->penjagaanColumnsMap));
 
-        return $this->repository->exportCsv($filename, function ($query) use ($bulan, $bulanLalu, $tahunIni, $tahunBulanLalu, $fungsi) {
-            $query->where(function ($q) use ($bulan, $bulanLalu, $tahunIni, $tahunBulanLalu) {
-                $q->where(function ($q1) use ($bulan, $tahunIni) {
-                    $q1->where('thn_setor', $tahunIni)->where('bln_setor', $bulan);
-                })->orWhere(function ($q2) use ($bulanLalu, $tahunBulanLalu) {
-                    $q2->where('thn_setor', $tahunBulanLalu)->where('bln_setor', $bulanLalu);
-                });
-            });
-
-            if (! empty($fungsi)) {
-                $query->whereIn('fungsi', $fungsi);
-            }
-
-            $query->orderBy('tgl_setor', 'desc');
-        });
+        return $this->csvExportService->exportFromQuery($filename, $this->penjagaanColumnsMap, $query);
     }
 }
