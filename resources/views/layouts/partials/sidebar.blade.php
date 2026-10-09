@@ -69,24 +69,41 @@
                 </div>
             </div>
 
-            {{-- PKM Links --}}
-            <a href="{{ route('pkm.pengawasan') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('penerimaan.pkmpengawasan') ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 hover:text-white text-slate-300' }}">
-                <i class="fa-solid fa-user-check text-sm w-5 text-center shrink-0"></i>
-                <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM Pengawasan</span>
-            </a>
+            {{-- PKM Dropdown --}}
+            @php $isPkm = request()->routeIs('pkm.pengawasan.*'); @endphp
+            <div x-data="{ open: {{ $isPkm ? 'true' : 'false' }} }" class="space-y-1">
+                <button
+                    @click="if(!sidebarOpen && !isPinned) { sidebarOpen = true; open = true; } else { open = !open; }"
+                    :class="open ? 'bg-slate-800/80 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'"
+                    class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition-colors">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-user-check text-sm w-5 text-center shrink-0"></i>
+                        <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM</span>
+                    </div>
+                    <i x-show="sidebarOpen || isPinned" x-cloak
+                        class="fa-solid text-[10px] transition-transform duration-200"
+                        :class="open ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                </button>
 
-            <a href="{{ route('pkm.pemeriksaan') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('penerimaan.pkmpemeriksaan') ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 hover:text-white text-slate-300' }}">
-                <i class="fa-solid fa-magnifying-glass-chart text-sm w-5 text-center shrink-0"></i>
-                <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM Pemeriksaan</span>
-            </a>
+                <div x-show="open && (sidebarOpen || isPinned)" x-cloak
+                    x-transition:enter="transition ease-out duration-100"
+                    x-transition:enter-start="transform opacity-0 scale-95"
+                    x-transition:enter-end="transform opacity-100 scale-100" class="pl-8 space-y-1">
 
-            <a href="{{ route('pkm.penagihan') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('penerimaan.pkmpenagihan') ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 hover:text-white text-slate-300' }}">
-                <i class="fa-solid fa-gavel text-sm w-5 text-center shrink-0"></i>
-                <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM Penagihan</span>
-            </a>
+                    <a href="{{ route('pkm.pengawasan') }}"
+                        class="block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('pkm.pengawasan') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/60' }}">
+                        Pengawasan
+                    </a>
+                    <a href="{{ route('pkm.pemeriksaan') }}"
+                        class="block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('pkm.pemeriksaan') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/60' }}">
+                        Pemeriksaan
+                    </a>
+                    <a href="{{ route('pkm.penagihan') }}"
+                        class="block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('pkm.penagihan') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/60' }}">
+                        Penagihan
+                    </a>
+                </div>
+            </div>
 
             {{-- Pencarian Dropdown --}}
             @php $isPencarian = request()->routeIs('pencarian.*'); @endphp
