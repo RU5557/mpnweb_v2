@@ -19,14 +19,15 @@ class SptRepository
     public function buildSptQuery(array $filters): Builder
     {
         $query = DB::table('spt')
-        // Pakai DB::raw untuk menyamakan collation saat perbandingan JOIN
+            // JOIN langsung memanfaatkan index mfwp (npwp16 & npwp15) tanpa REGEXP/fungsi string
             ->leftJoin('mfwp', function ($join) {
-                $join->on(DB::raw('spt.npwp COLLATE utf8mb4_unicode_ci'), '=', 'mfwp.npwp15')
+                $join->on(DB::raw('spt.npwp COLLATE utf8mb4_unicode_ci'), '=', 'mfwp.npwp16')
+                    ->orOn(DB::raw('spt.npwp COLLATE utf8mb4_unicode_ci'), '=', 'mfwp.npwp15')
                     ->orOn(DB::raw('spt.npwp COLLATE utf8mb4_unicode_ci'), '=', 'mfwp.npwp');
             })
             ->leftJoin('pegawai', function ($join) {
                 $join->on('mfwp.nip_ar', '=', 'pegawai.nip')
-                    ->on('spt.tahun', '=', 'pegawai.tahun')
+                    ->where('pegawai.tahun', '=', 2026)
                     ->where('pegawai.jabatan', '=', '5');
             });
 
@@ -124,7 +125,6 @@ class SptRepository
             'nama_ar' => 'NAMA AR',
         ];
 
-        // Diberikan kustom limit 50.000 data agar server RAM 8GB tidak overloaded
         $query = $this->buildSptQuery($filters)
             ->select([
                 'spt.nomor_tanda_terima',
