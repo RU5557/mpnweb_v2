@@ -92,7 +92,7 @@
         @include('layouts.partials.topbar')
 
         <!-- MAIN CONTENT CONTAINER -->
-        <main class="px-5 py-6 flex-grow bg-slate-100/80 min-w-0">
+        <main class="px-4 sm:px-6 py-6 flex-grow bg-slate-100/80 min-w-0">
             <div class="max-w-7xl mx-auto w-full min-w-0 space-y-6">
 
                 {{-- Flash Message Success (Otomatis hilang dalam 5 detik) --}}

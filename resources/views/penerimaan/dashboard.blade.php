@@ -3,15 +3,15 @@
 @section('content')
     <div class="space-y-5 font-sans">
 
-        <!-- HEADER & FILTER TOOLBAR (DISAMAKAN KETINGGIAN DENGAN HALAMAN PENJAGAAN BULANAN) -->
+        <!-- HEADER & FILTER TOOLBAR (UKURAN DISAMAKAN PERSIS PENJAGAAN BULANAN) -->
         <div
-            class="bg-white border border-slate-200/90 rounded-lg p-4 sm:p-4.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 shadow-2xs border-t-4 border-t-amber-500 w-full min-w-0">
+            class="bg-white border border-slate-200/90 rounded-lg p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 shadow-2xs border-t-4 border-t-amber-500 w-full min-w-0">
 
             <!-- Report Title -->
             <div class="flex items-center gap-3">
                 <div
-                    class="w-10 h-10 rounded-md bg-blue-950 text-amber-400 flex items-center justify-center font-bold text-base shrink-0 shadow-xs border border-blue-900">
-                    <i class="fa-solid fa-chart-column text-sm"></i>
+                    class="w-9 h-9 rounded-md bg-blue-950 text-amber-400 flex items-center justify-center font-bold text-base shrink-0 shadow-xs border border-blue-900">
+                    <i class="fa-solid fa-chart-column text-xs"></i>
                 </div>
                 <div>
                     <h1 class="text-base font-extrabold text-blue-950 leading-tight tracking-tight uppercase">Dashboard
@@ -20,15 +20,15 @@
                 </div>
             </div>
 
-            <!-- Filter Controls Bar (Standard Height match with Penjagaan Bulanan) -->
+            <!-- Filter Controls Bar -->
             <form action="{{ route('penerimaan.dashboard') }}" method="GET" class="flex flex-wrap items-center gap-2">
 
-                <div class="flex items-center bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 gap-2">
+                <div class="flex items-center bg-slate-50 border border-slate-200 rounded-md px-2 py-1 gap-2">
                     <span class="text-[11px] font-semibold text-slate-600"><i
                             class="fa-regular fa-calendar mr-1 text-amber-500"></i>Periode:</span>
 
                     <select name="bulan_awal"
-                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-medium focus:outline-none focus:border-blue-950 cursor-pointer">
+                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-0.5 font-medium focus:outline-none focus:border-blue-950 cursor-pointer">
                         @foreach ($listBulan as $m => $namaBulan)
                             <option value="{{ $m }}" {{ $blnAwal == $m ? 'selected' : '' }}>{{ $namaBulan }}
                             </option>
@@ -38,7 +38,7 @@
                     <span class="text-xs text-slate-400 font-semibold">s.d.</span>
 
                     <select name="bulan_akhir"
-                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-medium focus:outline-none focus:border-blue-950 cursor-pointer">
+                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-0.5 font-medium focus:outline-none focus:border-blue-950 cursor-pointer">
                         @foreach ($listBulan as $m => $namaBulan)
                             <option value="{{ $m }}" {{ $blnAkhir == $m ? 'selected' : '' }}>{{ $namaBulan }}
                             </option>
@@ -46,7 +46,7 @@
                     </select>
 
                     <select name="tahun"
-                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-mono font-bold focus:outline-none focus:border-blue-950 cursor-pointer">
+                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-0.5 font-mono font-bold focus:outline-none focus:border-blue-950 cursor-pointer">
                         @foreach (range(date('Y') - 3, date('Y')) as $year)
                             <option value="{{ $year }}" {{ $thnIni == $year ? 'selected' : '' }}>{{ $year }}
                             </option>
@@ -55,20 +55,20 @@
                 </div>
 
                 <button type="submit"
-                    class="bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/30 text-xs font-bold px-3.5 py-1.5 rounded-md transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                    class="bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/30 text-xs font-bold px-3.5 py-1 rounded-md transition shadow-xs flex items-center gap-1.5 cursor-pointer">
                     <i class="fa-solid fa-filter text-[10px]"></i>
                     <span>Terapkan</span>
                 </button>
 
                 @if (request()->has('bulan_awal') || request()->has('bulan_akhir') || request()->has('tahun') || request()->has('bulan'))
                     <a href="{{ route('penerimaan.dashboard') }}"
-                        class="text-slate-400 hover:text-slate-700 p-1.5 rounded transition" title="Reset Filter">
+                        class="text-slate-400 hover:text-slate-700 p-1 rounded transition" title="Reset Filter">
                         <i class="fa-solid fa-rotate-left text-xs"></i>
                     </a>
                 @endif
 
                 <a href="{{ route('penerimaan.dashboard.export-detil', ['tahun' => $thnIni, 'bulan_awal' => $blnAwal, 'bulan_akhir' => $blnAkhir]) }}"
-                    class="bg-white hover:bg-slate-50 text-blue-950 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-md transition flex items-center gap-1.5 ml-auto">
+                    class="bg-white hover:bg-slate-50 text-blue-950 border border-slate-300 text-xs font-bold px-3 py-1 rounded-md transition flex items-center gap-1.5 ml-auto">
                     <i class="fa-solid fa-file-excel text-xs text-emerald-600"></i>
                     <span>Export CSV</span>
                 </a>

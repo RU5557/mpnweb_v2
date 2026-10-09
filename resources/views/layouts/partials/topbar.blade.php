@@ -39,7 +39,7 @@
     <!-- Right Menu / Admin Profile -->
     <div class="flex items-center gap-3">
         <a href="{{ route('admin.index') }}"
-            class="flex items-center gap-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 py-1.5 px-3 rounded-lg transition group">
+            class="flex items-center gap-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 py-1 px-3 rounded-lg transition group">
             <div class="text-right hidden sm:block">
                 <div
                     class="text-xs font-extrabold text-blue-950 leading-tight group-hover:text-amber-600 transition-colors">
