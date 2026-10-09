@@ -8,15 +8,15 @@ echo ========================================================
 echo       PANEL SINKRONISASI DATA ETL (MPNINFO -^> MPNWEB_V2)
 echo ========================================================
 echo.
-echo  [1] HARIAN   : DRM ^& SPT Coretax (Gabungan)
-echo  [2] HARIAN   : DRM Saja (Pembayaran ^& Penjagaan)
-echo  [3] HARIAN   : SPT Coretax Saja (Pelaporan)
+echo  [1] HARIAN   : Gabungan Pembayaran DRM ^& SPT Coretax
+echo  [2] HARIAN   : Pembayaran DRM Saja (Termasuk Rebuild Penjagaan ^& PKM)
+echo  [3] HARIAN   : Laporan SPT Coretax Saja
 echo  [4] MINGGUAN : Masterfile WP (MFWP - Zero Downtime Swapping)
 echo  [5] TAHUNAN  : Tabel Referensi (Seksi, KLU, MAP, Pegawai)
-echo  [6] FULL SYNC: Semua Tabel + Rebuild Mart
+echo  [6] FULL SYNC: Semua Tabel + Rebuild Summary Mart, Penjagaan ^& PKM
 echo  [7] Keluar
 echo.
-echo * Catatan: Opsi 1-3 mendukung Filter Periode Tahun ^& Bulan.
+echo * Catatan: Opsi 1, 2, dan 3 mendukung Filter Periode Tahun ^& Bulan.
 echo ========================================================
 set /p pilihan="Pilih opsi menu [1-7]: "
 
@@ -34,7 +34,7 @@ pause >nul
 goto menu
 
 :: ========================================================
-:: OPSI 1: HARIAN - DRM & SPT CORETAX (GABUNGAN)
+:: OPSI 1: HARIAN - GABUNGAN DRM & SPT CORETAX
 :: ========================================================
 :sync_tx
 echo.
@@ -49,14 +49,14 @@ if not "%thn%"=="" set cmd_args=%cmd_args% --thnsetor=%thn%
 if not "%bln%"=="" set cmd_args=%cmd_args% --blnsetor=%bln%
 
 echo.
-echo [+] Memproses Sinkronisasi HARIAN (DRM ^& SPT Coretax)...
+echo [+] Memproses Sinkronisasi HARIAN (DRM ^& SPT Coretax + Rebuild Summary)...
 php artisan sync:data-sistem %cmd_args%
 echo.
 pause
 goto menu
 
 :: ========================================================
-:: OPSI 2: HARIAN - DRM SAJA (PEMBAYARAN & PENJAGAAN)
+:: OPSI 2: HARIAN - DRM SAJA (PEMBAYARAN, PENJAGAAN & PKM)
 :: ========================================================
 :sync_drm
 echo.
@@ -71,7 +71,7 @@ if not "%thn%"=="" set cmd_args=%cmd_args% --thnsetor=%thn%
 if not "%bln%"=="" set cmd_args=%cmd_args% --blnsetor=%bln%
 
 echo.
-echo [+] Memproses Sinkronisasi HARIAN (DRM Saja ^& Rebuild Penjagaan)...
+echo [+] Memproses Sinkronisasi HARIAN (DRM Saja ^& Rebuild Penjagaan + PKM)...
 php artisan sync:data-sistem %cmd_args%
 echo.
 pause
@@ -126,7 +126,7 @@ goto menu
 :: ========================================================
 :sync_all
 echo.
-echo [+] Memproses FULL SYNC (Semua Tabel + Rebuild Summary Mart)...
+echo [+] Memproses FULL SYNC (Semua Tabel + Rebuild All Summary)...
 php artisan sync:data-sistem --only=all
 echo.
 pause

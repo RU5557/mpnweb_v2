@@ -102,10 +102,10 @@ class SyncDataSistem extends Command
             DB::statement('SET UNIQUE_CHECKS = 1;');
             DB::statement('SET AUTOCOMMIT = 1;');
 
-            // 6. Rebuild Summary Mart & Summary Penjagaan
+            // 6. Rebuild Summary Mart (Penerimaan, Penjagaan & PKM)
             if (in_array($target, ['all', 'tx', 'drm', 'spt'])) {
                 $this->newLine();
-                $this->comment('-> Memicu rekapitulasi Summary Mart & Penjagaan...');
+                $this->comment('-> Memicu rekapitulasi Summary Mart, Penjagaan & PKM...');
 
                 $summaryOptions = [];
                 if ($thnSetor) {
@@ -115,17 +115,18 @@ class SyncDataSistem extends Command
                     $summaryOptions['--blnsetor'] = $blnSetor;
                 }
 
-                // Jika melibatkan data DRM/Penerimaan, jalankan rekapitulasi Mart & Penjagaan
+                // Jika melibatkan data DRM/Penerimaan, jalankan rekapitulasi Mart, Penjagaan, dan PKM
                 if (in_array($target, ['all', 'tx', 'drm'])) {
                     Artisan::call('summary:rebuild', $summaryOptions, $this->output);
                     $this->syncSummaryPenjagaan($thnSetor, $blnSetor);
+                    $this->syncSummaryPkm($thnSetor, $blnSetor);
                 }
             } else {
                 $this->newLine();
-                $this->comment('-> [SKIP] Rekapitulasi Summary Mart & Penjagaan dilewati.');
+                $this->comment('-> [SKIP] Rekapitulasi Summary Mart, Penjagaan & PKM dilewati.');
             }
 
-            // 7. Invalidasi Cache Dashboard secara terarah (Database Store Driver)
+            // 7. Invalidasi Cache Dashboard, Penjagaan & PKM secara terarah
             $this->invalidateDashboardCache($thnSetor, $blnSetor);
 
             $executionTime = round(microtime(true) - $startTime, 2);
@@ -153,6 +154,8 @@ class SyncDataSistem extends Command
             DB::statement('DROP TABLE IF EXISTS mfwp_old;');
             DB::statement('DROP TABLE IF EXISTS summary_penjagaan_temp;');
             DB::statement('DROP TABLE IF EXISTS summary_penjagaan_old;');
+            DB::statement('DROP TABLE IF EXISTS summary_pkm_temp;');
+            DB::statement('DROP TABLE IF EXISTS summary_pkm_old;');
 
             if ($useMaintenance) {
                 Artisan::call('up');
@@ -498,35 +501,113 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Invalidation Cache khusus untuk DashboardRepository dan PenjagaanRepository
+     * Sumber: mpnweb_v2.drm -> mpnweb_v2.summary_pkm
+     */
+    private function syncSummaryPkm($thnSetor = null, $blnSetor = null)
+    {
+        $this->comment('-> Memicu rekapitulasi Summary PKM Mart...');
+        $t0 = microtime(true);
+        $now = now()->toDateTimeString();
+
+        $whereConditions = [];
+        if (! empty($thnSetor)) {
+            $whereConditions[] = 'thn_setor = '.(int) $thnSetor;
+        }
+        if (! empty($blnSetor)) {
+            $whereConditions[] = 'bln_setor = '.(int) $blnSetor;
+        }
+
+        if (count($whereConditions) > 0) {
+            $whereSql = ' WHERE '.implode(' AND ', $whereConditions);
+
+            DB::statement("DELETE FROM summary_pkm{$whereSql};");
+
+            DB::statement("
+                INSERT INTO summary_pkm (
+                    thn_setor, bln_setor, npwp15, fungsi, flag_skp, total_setor, total_transaksi, created_at, updated_at
+                )
+                SELECT 
+                    thn_setor,
+                    bln_setor,
+                    npwp15,
+                    fungsi,
+                    flag_skp,
+                    COALESCE(SUM(jml_setor), 0) as total_setor,
+                    COUNT(id) as total_transaksi,
+                    '{$now}' as created_at,
+                    '{$now}' as updated_at
+                FROM drm
+                WHERE thn_setor IS NOT NULL AND bln_setor IS NOT NULL AND ".implode(' AND ', $whereConditions).'
+                GROUP BY thn_setor, bln_setor, npwp15, fungsi, flag_skp
+            ');
+
+            $elapsed = round(microtime(true) - $t0, 2);
+            $this->info("   [OK] Summary PKM PARTIAL synchronized ({$elapsed}s).");
+        } else {
+            DB::statement('DROP TABLE IF EXISTS summary_pkm_temp;');
+            DB::statement('CREATE TABLE summary_pkm_temp LIKE summary_pkm;');
+
+            DB::statement("
+                INSERT INTO summary_pkm_temp (
+                    thn_setor, bln_setor, npwp15, fungsi, flag_skp, total_setor, total_transaksi, created_at, updated_at
+                )
+                SELECT 
+                    thn_setor,
+                    bln_setor,
+                    npwp15,
+                    fungsi,
+                    flag_skp,
+                    COALESCE(SUM(jml_setor), 0) as total_setor,
+                    COUNT(id) as total_transaksi,
+                    '{$now}' as created_at,
+                    '{$now}' as updated_at
+                FROM drm
+                WHERE thn_setor IS NOT NULL AND bln_setor IS NOT NULL
+                GROUP BY thn_setor, bln_setor, npwp15, fungsi, flag_skp
+            ");
+
+            DB::statement('DROP TABLE IF EXISTS summary_pkm_old;');
+            DB::statement('RENAME TABLE summary_pkm TO summary_pkm_old, summary_pkm_temp TO summary_pkm;');
+            DB::statement('DROP TABLE IF EXISTS summary_pkm_old;');
+
+            $elapsed = round(microtime(true) - $t0, 2);
+            $this->info("   [OK] Summary PKM FULL synchronized via Swapping ({$elapsed}s).");
+        }
+    }
+
+    /**
+     * Invalidation Cache khusus untuk DashboardRepository, PenjagaanRepository & PKM Repositories
      */
     private function invalidateDashboardCache(?string $thnSetor = null, ?string $blnSetor = null)
     {
         $this->newLine();
-        $this->comment('-> Membersihkan Cache Dashboard & Penjagaan Repository...');
+        $this->comment('-> Membersihkan Cache Dashboard, Penjagaan & PKM Repository...');
 
         $prefix = config('cache.prefix', '');
 
         Cache::forget('penjagaan_fungsi_options');
+        Cache::forget('daftar_seksi_pengawasan_v2');
 
         if (! empty($thnSetor)) {
             $patternDash = "{$prefix}dashboard_summary_v4_{$thnSetor}_%";
             $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
 
             DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}pkm_%")->delete();
 
             Cache::forget("dashboard_target_{$thnSetor}");
 
-            $this->info("   [OK] Cache dashboard & penjagaan tahun {$thnSetor} berhasil dibersihkan ({$deletedDash} keys).");
+            $this->info("   [OK] Cache dashboard, penjagaan & PKM tahun {$thnSetor} berhasil dibersihkan ({$deletedDash} keys).");
         } else {
             $patternDash = "{$prefix}dashboard_summary_v4_%";
             $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
 
             DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}pkm_%")->delete();
 
             DB::table('cache')->where('key', 'LIKE', "{$prefix}dashboard_target_%")->delete();
 
-            $this->info("   [OK] Seluruh cache dashboard & penjagaan berhasil dibersihkan ({$deletedDash} keys).");
+            $this->info("   [OK] Seluruh cache dashboard, penjagaan & PKM berhasil dibersihkan ({$deletedDash} keys).");
         }
     }
 }
