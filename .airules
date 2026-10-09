@@ -5,3 +5,4 @@
 5. sebelum menjawab, carilah rujukan penerapan kaidah laravel 12 terbaik sesuai dengan hal yang sedang didiskusikan
 6. export csv menggunakan service dan traits
 7. query builder ditaruh semua di repository
+8. WAJIB menggunakan kaidah thin controller
