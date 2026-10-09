@@ -63,7 +63,7 @@
             @endif
 
             <!-- Tombol Export Detil Transaksi (Eksplisit membawa parameter ter-resolve) -->
-            <a href="{{ route('dashboard.export-detil', ['tahun' => $thnIni, 'bulan_awal' => $blnAwal, 'bulan_akhir' => $blnAkhir]) }}"
+            <a href="{{ route('penerimaan.dashboard.export-detil', ['tahun' => $thnIni, 'bulan_awal' => $blnAwal, 'bulan_akhir' => $blnAkhir]) }}"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5 border border-emerald-600">
                 <i class="fa-solid fa-file-excel text-xs"></i>
                 <span>Export CSV</span>

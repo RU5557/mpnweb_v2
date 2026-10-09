@@ -135,7 +135,7 @@ class DashboardController extends Controller
         $tahunLalu = $tahun - 1;
         $tahunFilter = [$tahunLalu, $tahun];
 
-        $filename = "Export_Tabel_DRM_{$tahunLalu}_{$tahun}_Jan_sd_Bln_{$bulanAkhir}.csv";
+        $filename = "dashboard_detil_{$tahunLalu}_{$tahun}_Jan_sd_Bln_{$bulanAkhir}.csv";
 
         // Pemetaan seluruh kolom tabel `drm` ke Header CSV
         $columnsMap = [
@@ -166,17 +166,14 @@ class DashboardController extends Controller
             'tipe' => 'Tipe',
         ];
 
-        // Kueri langsung ke tabel `drm` memanfaatkan indeks komposit `idx_dt_thn_bln_tgl`
         $query = DB::table('drm')
             ->select(array_keys($columnsMap))
             ->whereIn('thn_setor', $tahunFilter)
             ->whereBetween('bln_setor', [$bulanAwal, $bulanAkhir])
-            ->orderBy('thn_setor', 'desc')
-            ->orderBy('bln_setor', 'desc')
-            ->orderBy('id', 'asc');
+            ->orderBy('id', 'asc'); // Sangat cepat untuk chunk() dan tanpa Filesort
 
         // Menggunakan Trait streaming CSV dengan chunking (misal per 3.000 baris)
-        return $this->streamCsvFromQuery($filename, $columnsMap, $query, 3000);
+        return $this->streamCsvFromQuery($filename, $columnsMap, $query, 2000);
     }
 
     private function resolvePeriod(Request $request): array
