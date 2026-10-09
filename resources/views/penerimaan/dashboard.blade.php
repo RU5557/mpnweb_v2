@@ -3,32 +3,32 @@
 @section('content')
     <div class="space-y-5 font-sans">
 
-        <!-- HEADER & FILTER TOOLBAR (DJP EXECUTIVE CONTROL BAR) -->
+        <!-- HEADER & FILTER TOOLBAR (DISAMAKAN KETINGGIAN DENGAN HALAMAN PENJAGAAN BULANAN) -->
         <div
-            class="bg-white border border-slate-200/90 rounded-lg p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 shadow-xs border-t-4 border-t-amber-500">
+            class="bg-white border border-slate-200/90 rounded-lg p-4 sm:p-4.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 shadow-2xs border-t-4 border-t-amber-500 w-full min-w-0">
 
             <!-- Report Title -->
             <div class="flex items-center gap-3">
                 <div
-                    class="w-9 h-9 rounded-md bg-blue-950 text-amber-400 flex items-center justify-center font-bold text-base shrink-0 shadow-xs border border-blue-900">
-                    <i class="fa-solid fa-chart-column text-xs"></i>
+                    class="w-10 h-10 rounded-md bg-blue-950 text-amber-400 flex items-center justify-center font-bold text-base shrink-0 shadow-xs border border-blue-900">
+                    <i class="fa-solid fa-chart-column text-sm"></i>
                 </div>
                 <div>
-                    <h1 class="text-base font-extrabold text-blue-950 leading-tight tracking-tight">Dashboard Ringkasan
-                        Penerimaan</h1>
+                    <h1 class="text-base font-extrabold text-blue-950 leading-tight tracking-tight uppercase">Dashboard
+                        Ringkasan Penerimaan</h1>
                     <p class="text-[11px] text-slate-500 font-medium">Laporan realisasi dan pencapaian target penerimaan</p>
                 </div>
             </div>
 
-            <!-- Filter Controls (DJP Gold Accent) -->
+            <!-- Filter Controls Bar (Standard Height match with Penjagaan Bulanan) -->
             <form action="{{ route('penerimaan.dashboard') }}" method="GET" class="flex flex-wrap items-center gap-2">
 
-                <div class="flex items-center bg-slate-50 border border-slate-200 rounded-md px-2 py-1 gap-2">
+                <div class="flex items-center bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5 gap-2">
                     <span class="text-[11px] font-semibold text-slate-600"><i
                             class="fa-regular fa-calendar mr-1 text-amber-500"></i>Periode:</span>
 
                     <select name="bulan_awal"
-                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-medium focus:outline-none focus:border-blue-900 cursor-pointer">
+                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-medium focus:outline-none focus:border-blue-950 cursor-pointer">
                         @foreach ($listBulan as $m => $namaBulan)
                             <option value="{{ $m }}" {{ $blnAwal == $m ? 'selected' : '' }}>{{ $namaBulan }}
                             </option>
@@ -38,7 +38,7 @@
                     <span class="text-xs text-slate-400 font-semibold">s.d.</span>
 
                     <select name="bulan_akhir"
-                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-medium focus:outline-none focus:border-blue-900 cursor-pointer">
+                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-medium focus:outline-none focus:border-blue-950 cursor-pointer">
                         @foreach ($listBulan as $m => $namaBulan)
                             <option value="{{ $m }}" {{ $blnAkhir == $m ? 'selected' : '' }}>{{ $namaBulan }}
                             </option>
@@ -46,7 +46,7 @@
                     </select>
 
                     <select name="tahun"
-                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-mono font-bold focus:outline-none focus:border-blue-900 cursor-pointer">
+                        class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 font-mono font-bold focus:outline-none focus:border-blue-950 cursor-pointer">
                         @foreach (range(date('Y') - 3, date('Y')) as $year)
                             <option value="{{ $year }}" {{ $thnIni == $year ? 'selected' : '' }}>{{ $year }}
                             </option>
@@ -55,15 +55,14 @@
                 </div>
 
                 <button type="submit"
-                    class="bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/30 text-xs font-bold px-3.5 py-1.5 rounded-md transition shadow-xs flex items-center gap-1.5">
-                    <i class="fa-solid fa-filter text-[10px] text-amber-400"></i>
+                    class="bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/30 text-xs font-bold px-3.5 py-1.5 rounded-md transition shadow-xs flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-filter text-[10px]"></i>
                     <span>Terapkan</span>
                 </button>
 
                 @if (request()->has('bulan_awal') || request()->has('bulan_akhir') || request()->has('tahun') || request()->has('bulan'))
                     <a href="{{ route('penerimaan.dashboard') }}"
-                        class="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-md transition"
-                        title="Reset Filter">
+                        class="text-slate-400 hover:text-slate-700 p-1.5 rounded transition" title="Reset Filter">
                         <i class="fa-solid fa-rotate-left text-xs"></i>
                     </a>
                 @endif
@@ -79,7 +78,7 @@
         <!-- SCORECARDS ROW 1: DJP CORE KPI METRICS -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
-            <!-- Scorecard: Penerimaan Saat Ini (Aksen Navy DJP, Alignment Sejajar) -->
+            <!-- Scorecard: Penerimaan Saat Ini -->
             <div
                 class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between hover:border-amber-400 transition shadow-2xs relative overflow-hidden min-h-[140px]">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-blue-950"></div>
@@ -97,7 +96,6 @@
                 </div>
 
                 <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <!-- Pertumbuhan MoM (Bawah Kiri) -->
                     <span
                         class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono {{ $growthMoM >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-rose-50 text-rose-700 border border-rose-200/60' }}"
                         title="Growth Month-on-Month">
@@ -105,7 +103,6 @@
                         {{ number_format(abs($growthMoM), 1, ',', '.') }}% MoM
                     </span>
 
-                    <!-- Pertumbuhan YoY (Bawah Kanan) -->
                     <span
                         class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono {{ $growthYoY >= 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' : 'bg-rose-50 text-rose-700 border border-rose-200/60' }}"
                         title="Growth Year-on-Year">
@@ -115,7 +112,7 @@
                 </div>
             </div>
 
-            <!-- Scorecard: Penerimaan Bulan Lalu (Aksen Navy DJP) -->
+            <!-- Scorecard: Penerimaan Bulan Lalu -->
             <div
                 class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between hover:border-amber-400 transition shadow-2xs relative overflow-hidden min-h-[140px]">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-blue-950"></div>
@@ -139,7 +136,7 @@
                 </div>
             </div>
 
-            <!-- Scorecard: Penerimaan Tahun Lalu (Aksen Navy DJP) -->
+            <!-- Scorecard: Penerimaan Tahun Lalu -->
             <div
                 class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between hover:border-amber-400 transition shadow-2xs relative overflow-hidden min-h-[140px]">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-blue-950"></div>
@@ -193,7 +190,7 @@
         </div>
 
         <!-- BREAKDOWN PERFORMANCE METRICS CONTAINER -->
-        <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs">
+        <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs border-t-4 border-t-blue-950">
 
             <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
                 <h2 class="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-2">
