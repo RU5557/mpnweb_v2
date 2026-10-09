@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\DB;
 class SyncDataSistem extends Command
 {
     /**
-     * Nama dan tanda tangan dari console command.
+     * Tanda tangan command mendukung target: all, ref, master, tx, drm, spt
      */
     protected $signature = 'sync:data-sistem 
-                            {--only=all : Pilihan target: all, ref, master, tx, spt}
+                            {--only=all : Pilihan target: all, ref, master, tx, drm, spt}
                             {--thnsetor= : Filter tahun (contoh: 2026)}
                             {--blnsetor= : Filter bulan (contoh: 09 atau 9)}
                             {--maintenance : Aktifkan mode maintenance selama sync}';
@@ -65,7 +65,7 @@ class SyncDataSistem extends Command
             DB::statement('SET UNIQUE_CHECKS = 0;');
             DB::statement('SET AUTOCOMMIT = 0;');
 
-            // A. Sinkronisasi Referensi (seksi, klu, map, pegawai)
+            // A. Sinkronisasi Referensi (Seksi, KLU, MAP, Pegawai) - TAHUNAN / INSIDENTAL
             if (in_array($target, ['all', 'ref'])) {
                 $this->syncSeksi();
                 $this->syncKlu();
@@ -73,17 +73,17 @@ class SyncDataSistem extends Command
                 $this->syncPegawai();
             }
 
-            // B. Sinkronisasi Masterfile WP via Atomic Table Swapping (mpninfo.masterfile -> mpnweb_v2.mfwp)
+            // B. Sinkronisasi Masterfile WP (mpninfo.masterfile -> mpnweb_v2.mfwp) - MINGGUAN
             if (in_array($target, ['all', 'master'])) {
                 $this->syncMasterfileWpBatch();
             }
 
-            // C. Sinkronisasi Detil Transaksi WP (mpninfo.ppmpkm_drm -> mpnweb_v2.drm)
-            if (in_array($target, ['all', 'tx'])) {
+            // C. Sinkronisasi Detil Transaksi WP / DRM (mpninfo.ppmpkm_drm -> mpnweb_v2.drm) - HARIAN
+            if (in_array($target, ['all', 'tx', 'drm'])) {
                 $this->syncDetilTransaksiWp($thnSetor, $blnSetor);
             }
 
-            // D. Sinkronisasi SPT Coretax (mpninfo.spt_coretax -> mpnweb_v2.spt)
+            // D. Sinkronisasi SPT Coretax (mpninfo.spt_coretax -> mpnweb_v2.spt) - HARIAN
             if (in_array($target, ['all', 'tx', 'spt'])) {
                 $this->syncSptCoretax($thnSetor, $blnSetor);
             }
@@ -102,10 +102,10 @@ class SyncDataSistem extends Command
             DB::statement('SET UNIQUE_CHECKS = 1;');
             DB::statement('SET AUTOCOMMIT = 1;');
 
-            // 6. Rebuild Summary Mart (Dipicu jika target transaksi / spt)
-            if (in_array($target, ['all', 'tx', 'spt'])) {
+            // 6. Rebuild Summary Mart & Summary Penjagaan
+            if (in_array($target, ['all', 'tx', 'drm', 'spt'])) {
                 $this->newLine();
-                $this->comment('-> Memicu rekapitulasi Summary Mart Penerimaan...');
+                $this->comment('-> Memicu rekapitulasi Summary Mart & Penjagaan...');
 
                 $summaryOptions = [];
                 if ($thnSetor) {
@@ -115,10 +115,14 @@ class SyncDataSistem extends Command
                     $summaryOptions['--blnsetor'] = $blnSetor;
                 }
 
-                Artisan::call('summary:rebuild', $summaryOptions, $this->output);
+                // Jika melibatkan data DRM/Penerimaan, jalankan rekapitulasi Mart & Penjagaan
+                if (in_array($target, ['all', 'tx', 'drm'])) {
+                    Artisan::call('summary:rebuild', $summaryOptions, $this->output);
+                    $this->syncSummaryPenjagaan($thnSetor, $blnSetor);
+                }
             } else {
                 $this->newLine();
-                $this->comment('-> [SKIP] Rekapitulasi Summary Mart dilewati.');
+                $this->comment('-> [SKIP] Rekapitulasi Summary Mart & Penjagaan dilewati.');
             }
 
             // 7. Invalidasi Cache Dashboard secara terarah (Database Store Driver)
@@ -147,6 +151,8 @@ class SyncDataSistem extends Command
             // Bersihkan tabel temporary jika proses swapping mengalami error di tengah jalan
             DB::statement('DROP TABLE IF EXISTS mfwp_temp;');
             DB::statement('DROP TABLE IF EXISTS mfwp_old;');
+            DB::statement('DROP TABLE IF EXISTS summary_penjagaan_temp;');
+            DB::statement('DROP TABLE IF EXISTS summary_penjagaan_old;');
 
             if ($useMaintenance) {
                 Artisan::call('up');
@@ -161,8 +167,7 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.seksi
-     * Tujuan: mpnweb_v2.seksi
+     * Sumber: mpninfo.seksi -> mpnweb_v2.seksi
      */
     private function syncSeksi()
     {
@@ -177,8 +182,7 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.klu_baru
-     * Tujuan: mpnweb_v2.klu
+     * Sumber: mpninfo.klu_baru -> mpnweb_v2.klu
      */
     private function syncKlu()
     {
@@ -193,8 +197,7 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.map_baru
-     * Tujuan: mpnweb_v2.map
+     * Sumber: mpninfo.map_baru -> mpnweb_v2.map
      */
     private function syncKdmap()
     {
@@ -209,8 +212,7 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.pegawai
-     * Tujuan: mpnweb_v2.pegawai
+     * Sumber: mpninfo.pegawai -> mpnweb_v2.pegawai
      */
     private function syncPegawai()
     {
@@ -225,16 +227,13 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.masterfile
-     * Tujuan: mpnweb_v2.mfwp
-     * Metode: Shadow Table Swapping + Cursor Streaming + Batching 2000 (Zero Downtime).
+     * Sumber: mpninfo.masterfile -> mpnweb_v2.mfwp
      */
     private function syncMasterfileWpBatch()
     {
         $this->comment('-> Synchronizing: mfwp via Atomic Table Swapping (BATCH 2000)...');
         $t0 = microtime(true);
 
-        // 1. Buat tabel temp dengan struktur & indeks persis mfwp
         DB::statement('DROP TABLE IF EXISTS mfwp_temp;');
         DB::statement('CREATE TABLE mfwp_temp LIKE mfwp;');
 
@@ -302,7 +301,6 @@ class SyncDataSistem extends Command
             $total += count($batchData);
         }
 
-        // 2. Atomic Table Swapping (Eksklusif MariaDB - berjalan dalam milidetik)
         DB::statement('RENAME TABLE mfwp TO mfwp_old, mfwp_temp TO mfwp;');
         DB::statement('DROP TABLE IF EXISTS mfwp_old;');
 
@@ -312,8 +310,7 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.ppmpkm_drm
-     * Tujuan: mpnweb_v2.drm
+     * Sumber: mpninfo.ppmpkm_drm -> mpnweb_v2.drm
      */
     private function syncDetilTransaksiWp($thnSetor = null, $blnSetor = null)
     {
@@ -370,8 +367,7 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Sumber: mpninfo.spt_coretax
-     * Tujuan: mpnweb_v2.spt
+     * Sumber: mpninfo.spt_coretax -> mpnweb_v2.spt
      */
     private function syncSptCoretax($thnSetor = null, $blnSetor = null)
     {
@@ -429,34 +425,108 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Invalidation Cache khusus untuk DashboardRepository (Sesuai Pattern Key dashboard_summary_v4_*)
-     * Bekerja presisi pada Database Cache Store tanpa mengganggu cache/session lainnya.
+     * Sumber: mpnweb_v2.drm -> mpnweb_v2.summary_penjagaan
+     */
+    private function syncSummaryPenjagaan($thnSetor = null, $blnSetor = null)
+    {
+        $this->comment('-> Memicu rekapitulasi Summary Penjagaan...');
+        $t0 = microtime(true);
+        $now = now()->toDateTimeString();
+
+        $whereConditions = [];
+        if (! empty($thnSetor)) {
+            $whereConditions[] = 'thn_setor = '.(int) $thnSetor;
+        }
+        if (! empty($blnSetor)) {
+            $whereConditions[] = 'bln_setor = '.(int) $blnSetor;
+        }
+
+        if (count($whereConditions) > 0) {
+            $whereSql = ' WHERE '.implode(' AND ', $whereConditions);
+
+            DB::statement("DELETE FROM summary_penjagaan{$whereSql};");
+
+            DB::statement("
+                INSERT INTO summary_penjagaan (
+                    thn_setor, bln_setor, tgl_setor, fungsi, total_setor, total_transaksi, created_at, updated_at
+                )
+                SELECT 
+                    thn_setor,
+                    bln_setor,
+                    tgl_setor,
+                    fungsi,
+                    COALESCE(SUM(jml_setor), 0) as total_setor,
+                    COUNT(id) as total_transaksi,
+                    '{$now}' as created_at,
+                    '{$now}' as updated_at
+                FROM drm
+                WHERE tgl_setor IS NOT NULL AND ".implode(' AND ', $whereConditions).'
+                GROUP BY thn_setor, bln_setor, tgl_setor, fungsi
+            ');
+
+            $elapsed = round(microtime(true) - $t0, 2);
+            $this->info("   [OK] Summary Penjagaan PARTIAL synchronized ({$elapsed}s).");
+        } else {
+            DB::statement('DROP TABLE IF EXISTS summary_penjagaan_temp;');
+            DB::statement('CREATE TABLE summary_penjagaan_temp LIKE summary_penjagaan;');
+
+            DB::statement("
+                INSERT INTO summary_penjagaan_temp (
+                    thn_setor, bln_setor, tgl_setor, fungsi, total_setor, total_transaksi, created_at, updated_at
+                )
+                SELECT 
+                    thn_setor,
+                    bln_setor,
+                    tgl_setor,
+                    fungsi,
+                    COALESCE(SUM(jml_setor), 0) as total_setor,
+                    COUNT(id) as total_transaksi,
+                    '{$now}' as created_at,
+                    '{$now}' as updated_at
+                FROM drm
+                WHERE tgl_setor IS NOT NULL
+                GROUP BY thn_setor, bln_setor, tgl_setor, fungsi
+            ");
+
+            DB::statement('DROP TABLE IF EXISTS summary_penjagaan_old;');
+            DB::statement('RENAME TABLE summary_penjagaan TO summary_penjagaan_old, summary_penjagaan_temp TO summary_penjagaan;');
+            DB::statement('DROP TABLE IF EXISTS summary_penjagaan_old;');
+
+            $elapsed = round(microtime(true) - $t0, 2);
+            $this->info("   [OK] Summary Penjagaan FULL synchronized via Swapping ({$elapsed}s).");
+        }
+    }
+
+    /**
+     * Invalidation Cache khusus untuk DashboardRepository dan PenjagaanRepository
      */
     private function invalidateDashboardCache(?string $thnSetor = null, ?string $blnSetor = null)
     {
         $this->newLine();
-        $this->comment('-> Membersihkan Cache Dashboard Repository...');
+        $this->comment('-> Membersihkan Cache Dashboard & Penjagaan Repository...');
 
         $prefix = config('cache.prefix', '');
 
-        if (! empty($thnSetor)) {
-            // Hapus cache spesifik untuk tahun yang di-sync
-            $pattern = "{$prefix}dashboard_summary_v4_{$thnSetor}_%";
-            $deleted = DB::table('cache')->where('key', 'LIKE', $pattern)->delete();
+        Cache::forget('penjagaan_fungsi_options');
 
-            // Juga hapus cache target tahunan
+        if (! empty($thnSetor)) {
+            $patternDash = "{$prefix}dashboard_summary_v4_{$thnSetor}_%";
+            $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
+
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
+
             Cache::forget("dashboard_target_{$thnSetor}");
 
-            $this->info("   [OK] Cache dashboard tahun {$thnSetor} berhasil dibersihkan ({$deleted} keys).");
+            $this->info("   [OK] Cache dashboard & penjagaan tahun {$thnSetor} berhasil dibersihkan ({$deletedDash} keys).");
         } else {
-            // Full refresh: Hapus seluruh cache summary dashboard v4
-            $pattern = "{$prefix}dashboard_summary_v4_%";
-            $deleted = DB::table('cache')->where('key', 'LIKE', $pattern)->delete();
+            $patternDash = "{$prefix}dashboard_summary_v4_%";
+            $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
 
-            // Hapus semua cache target
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
+
             DB::table('cache')->where('key', 'LIKE', "{$prefix}dashboard_target_%")->delete();
 
-            $this->info("   [OK] Seluruh cache summary dashboard berhasil dibersihkan ({$deleted} keys).");
+            $this->info("   [OK] Seluruh cache dashboard & penjagaan berhasil dibersihkan ({$deletedDash} keys).");
         }
     }
 }
