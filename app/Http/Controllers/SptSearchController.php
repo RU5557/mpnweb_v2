@@ -2,19 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Repositories\SptCoretaxRepository;
+use App\Repositories\SptRepository;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SptSearchController extends Controller
 {
-    protected SptCoretaxRepository $sptRepository;
-
-    public function __construct(SptCoretaxRepository $sptRepository)
-    {
-        $this->sptRepository = $sptRepository;
-    }
+    public function __construct(
+        protected SptRepository $sptRepository
+    ) {}
 
     public function index(Request $request): View
     {
