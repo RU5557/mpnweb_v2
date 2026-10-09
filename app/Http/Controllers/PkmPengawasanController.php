@@ -14,9 +14,6 @@ class PkmPengawasanController extends Controller
         protected PkmPengawasanRepository $repository
     ) {}
 
-    /**
-     * Tampilkan Ringkasan PKM Pengawasan per Seksi & AR
-     */
     public function index(Request $request)
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
@@ -37,7 +34,7 @@ class PkmPengawasanController extends Controller
             abort(503, 'Data PKM Pengawasan sedang tidak tersedia. Silakan coba lagi.');
         }
 
-        return view('penerimaan.pkmpengawasan', compact(
+        return view('pkm.pengawasan', compact(
             'pkmData',
             'daftarSeksi',
             'sortColumn',
@@ -48,9 +45,6 @@ class PkmPengawasanController extends Controller
         ));
     }
 
-    /**
-     * Handle Export CSV Detil Transaksi Pengawasan
-     */
     public function exportDetil(Request $request): StreamedResponse
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
@@ -59,9 +53,6 @@ class PkmPengawasanController extends Controller
         return $this->repository->exportDetilCsv($tahun, $bulan, $seksiFilter);
     }
 
-    /**
-     * Helper resolusi periode tahun & bulan
-     */
     private function resolvePeriod(Request $request): array
     {
         $tahun = (int) $request->input('tahun', date('Y'));

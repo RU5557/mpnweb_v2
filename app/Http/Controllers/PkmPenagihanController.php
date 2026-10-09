@@ -14,9 +14,6 @@ class PkmPenagihanController extends Controller
         protected PkmPenagihanRepository $repository
     ) {}
 
-    /**
-     * Tampilkan Summary PKM Penagihan per JSPN & Flag SKP
-     */
     public function index(Request $request)
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
@@ -43,7 +40,7 @@ class PkmPenagihanController extends Controller
             abort(503, 'Data PKM Penagihan sedang tidak tersedia. Silakan coba lagi.');
         }
 
-        return view('penerimaan.pkmpenagihan', compact(
+        return view('pkm.penagihan', compact(
             'pkmData',
             'sortColumn',
             'sortDirection',
@@ -53,9 +50,6 @@ class PkmPenagihanController extends Controller
         ));
     }
 
-    /**
-     * Handle Export CSV Detil Transaksi Penagihan
-     */
     public function exportDetil(Request $request): StreamedResponse
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);

@@ -2,7 +2,7 @@
 
 namespace App\Repositories;
 
-use App\Models\DetilTransaksiWp;
+use App\Models\SummaryPkm;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -10,12 +10,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PkmPengawasanRepository
 {
-    /**
-     * Ambil daftar nama Seksi Pengawasan (Cached 24 Jam)
-     */
     public function getDaftarSeksi(): array
     {
-        return Cache::remember('daftar_seksi_pengawasan_v2', 86400, function () {
+        return Cache::remember('daftar_seksi_pengawasan_v8', 86400, function () {
             $seksi = DB::table('seksi')
                 ->where('nama', 'LIKE', '%Pengawasan%')
                 ->orderBy('nama', 'asc')
@@ -28,57 +25,89 @@ class PkmPengawasanRepository
         });
     }
 
-    /**
-     * Ambil Data Agregasi Ringkasan PKM Pengawasan per AR
-     */
     public function getSummaryPkm(int $tahun, int $bulan, string $seksiFilter, string $sortColumn, string $sortDirection): Collection
     {
         $allowedSorts = [
-            'nama_seksi' => "COALESCE(s.nama, 'Unassign')",
-            'nama_ar' => "COALESCE(p.nama, 'Unassign')",
+            'nama_seksi' => 'nama_seksi',
+            'nama_ar' => 'nama_ar',
             'total_akt_pengawasan' => 'total_akt_pengawasan',
             'total_lainnya' => 'total_lainnya',
             'total_wra_pengawasan' => 'total_wra_pengawasan',
             'total_pkm_pengawasan' => 'total_pkm_pengawasan',
         ];
 
-        $sortBy = $allowedSorts[$sortColumn] ?? "COALESCE(s.nama, 'Unassign')";
+        $sortBy = $allowedSorts[$sortColumn] ?? 'nama_seksi';
         $sortDir = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
 
-        $cacheKey = "pkm_pengawasan_v2_{$tahun}_{$bulan}_".md5($seksiFilter)."_{$sortColumn}_{$sortDir}";
+        $cacheKey = "pkm_pengawasan_v12_{$tahun}_{$bulan}_".md5($seksiFilter)."_{$sortColumn}_{$sortDir}";
 
-        return Cache::remember($cacheKey, 600, function () use ($tahun, $bulan, $seksiFilter, $sortColumn, $sortBy, $sortDir) {
-            $query = $this->buildBaseQuery($tahun, $bulan, $seksiFilter);
+        return Cache::remember($cacheKey, 600, function () use ($tahun, $bulan, $seksiFilter, $sortBy, $sortDir) {
+            $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
 
-            return $query
-                ->select([
-                    DB::raw("COALESCE(mw.nip_ar, 'Unassign') as nip_ar"),
-                    DB::raw("COALESCE(p.nama, 'Unassign') as nama_ar"),
-                    DB::raw("COALESCE(s.nama, 'Unassign') as nama_seksi"),
-                    DB::raw("SUM(CASE WHEN LOWER(dt.fungsi) LIKE 'akt%' THEN dt.jml_setor ELSE 0 END) as total_akt_pengawasan"),
-                    DB::raw("SUM(CASE WHEN LOWER(dt.fungsi) LIKE 'lain%' THEN dt.jml_setor ELSE 0 END) as total_lainnya"),
-                    DB::raw("SUM(CASE WHEN LOWER(dt.fungsi) LIKE 'wra%' THEN dt.jml_setor ELSE 0 END) as total_wra_pengawasan"),
-                    DB::raw('SUM(dt.jml_setor) as total_pkm_pengawasan'),
-                ])
-                ->groupBy(
-                    DB::raw("COALESCE(mw.nip_ar, 'Unassign')"),
-                    DB::raw("COALESCE(p.nama, 'Unassign')"),
-                    DB::raw("COALESCE(s.nama, 'Unassign')")
-                )
-                ->orderBy(DB::raw($sortBy), $sortDir)
-                ->when($sortColumn === 'nama_seksi', function ($q) {
-                    return $q->orderBy(DB::raw("COALESCE(p.nama, 'Unassign')"), 'asc');
+            // 1. Subquery: Petakan dan bersihkan relasi tabel ke label 'Unassign'
+            $subQuery = SummaryPkm::query()
+                ->toBase()
+                ->from('summary_pkm as sp')
+                ->leftJoin('mfwp as mw', 'sp.npwp15', '=', 'mw.npwp15')
+                ->leftJoin('pegawai as p', function ($join) use ($tahunPegawai) {
+                    $join->on('mw.nip_ar', '=', 'p.nip')
+                        ->where('p.tahun', '=', $tahunPegawai);
                 })
+                ->leftJoin('seksi as s', function ($join) {
+                    $join->on(DB::raw('CAST(s.id AS CHAR)'), '=', 'p.seksi');
+                })
+                ->whereIn('sp.fungsi', ['AKT PENGAWASAN', 'LAINNYA', 'WRA PENGAWASAN'])
+                ->where('sp.thn_setor', $tahun)
+                ->whereBetween('sp.bln_setor', [1, $bulan])
+                ->select([
+                    'sp.fungsi',
+                    'sp.total_setor',
+                    DB::raw("
+                        CASE 
+                            WHEN p.nama IS NULL OR s.nama IS NULL OR TRIM(p.nama) = '' OR TRIM(s.nama) = '' THEN 'Unassign'
+                            ELSE TRIM(mw.nip_ar)
+                        END as clean_nip_ar
+                    "),
+                    DB::raw("
+                        CASE 
+                            WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign'
+                            ELSE TRIM(p.nama)
+                        END as clean_nama_ar
+                    "),
+                    DB::raw("
+                        CASE 
+                            WHEN s.nama IS NULL OR TRIM(s.nama) = '' THEN 'Unassign'
+                            ELSE TRIM(s.nama)
+                        END as clean_nama_seksi
+                    "),
+                ]);
+
+            // 2. Query Utama: Lakukan agregasi SUM & GROUP BY secara bersih
+            $mainQuery = DB::query()
+                ->fromSub($subQuery, 'src');
+
+            if ($seksiFilter !== '') {
+                $mainQuery->where('src.clean_nama_seksi', $seksiFilter);
+            }
+
+            return $mainQuery->select([
+                'src.clean_nip_ar as nip_ar',
+                'src.clean_nama_ar as nama_ar',
+                'src.clean_nama_seksi as nama_seksi',
+                DB::raw("SUM(CASE WHEN src.fungsi = 'AKT PENGAWASAN' THEN src.total_setor ELSE 0 END) as total_akt_pengawasan"),
+                DB::raw("SUM(CASE WHEN src.fungsi = 'LAINNYA' THEN src.total_setor ELSE 0 END) as total_lainnya"),
+                DB::raw("SUM(CASE WHEN src.fungsi = 'WRA PENGAWASAN' THEN src.total_setor ELSE 0 END) as total_wra_pengawasan"),
+                DB::raw('SUM(src.total_setor) as total_pkm_pengawasan'),
+            ])
+                ->groupBy('src.clean_nip_ar', 'src.clean_nama_ar', 'src.clean_nama_seksi')
+                ->orderBy($sortBy, $sortDir)
                 ->get();
         });
     }
 
-    /**
-     * Export Detil PKM Pengawasan ke Streamed CSV
-     */
     public function exportDetilCsv(int $tahun, int $bulan, string $seksiFilter): StreamedResponse
     {
-        $filename = "Export_Detil_PKM_Pengawasan_{$tahun}_{$bulan}.csv";
+        $filename = "detil_pkm_pengawasan_{$tahun}_{$bulan}.csv";
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -92,32 +121,58 @@ class PkmPengawasanRepository
             set_time_limit(0);
 
             $file = fopen('php://output', 'w');
-            fwrite($file, "\xEF\xBB\xBF"); // UTF-8 BOM untuk Excel
+            fwrite($file, "\xEF\xBB\xBF");
 
             fputcsv($file, [
                 'NO', 'NPWP', 'NAMA WP', 'SEKSI', 'NAMA AR',
                 'FUNGSI', 'KD MAP', 'KD BAYAR', 'BULAN', 'TAHUN', 'JUMLAH SETOR',
             ]);
 
-            $query = $this->buildBaseQuery($tahun, $bulan, $seksiFilter)
-                ->select([
-                    'dt.npwp15',
-                    DB::raw("COALESCE(mw.nama, '-') as nama_wp"),
-                    'dt.kd_map',
-                    'dt.kd_bayar',
-                    'dt.jml_setor',
-                    'dt.thn_setor',
-                    'dt.bln_setor',
-                    'dt.fungsi',
-                    DB::raw("COALESCE(mw.nip_ar, 'Unassign') as nip_ar"),
-                    DB::raw("COALESCE(p.nama, 'Unassign') as nama_ar"),
-                    DB::raw("COALESCE(s.nama, 'Unassign') as nama_seksi"),
-                ])
+            $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
+
+            $query = DB::table('drm as dt')
+                ->leftJoin('mfwp as mw', 'dt.npwp15', '=', 'mw.npwp15')
+                ->leftJoin('pegawai as p', function ($join) use ($tahunPegawai) {
+                    $join->on('mw.nip_ar', '=', 'p.nip')
+                        ->where('p.tahun', '=', $tahunPegawai);
+                })
+                ->leftJoin('seksi as s', function ($join) {
+                    $join->on(DB::raw('CAST(s.id AS CHAR)'), '=', 'p.seksi');
+                })
+                ->whereIn('dt.fungsi', ['AKT PENGAWASAN', 'LAINNYA', 'WRA PENGAWASAN'])
+                ->where('dt.thn_setor', $tahun)
+                ->whereBetween('dt.bln_setor', [1, $bulan]);
+
+            if ($seksiFilter !== '') {
+                if ($seksiFilter === 'Unassign') {
+                    $query->where(function ($q) {
+                        $q->whereNull('s.nama')
+                            ->orWhere('s.nama', '')
+                            ->orWhere('s.nama', 'Unassign');
+                    });
+                } else {
+                    $query->where('s.nama', $seksiFilter);
+                }
+            }
+
+            $results = $query->select([
+                'dt.npwp15',
+                DB::raw("COALESCE(mw.nama, '-') as nama_wp"),
+                'dt.kd_map',
+                'dt.kd_bayar',
+                'dt.jml_setor',
+                'dt.thn_setor',
+                'dt.bln_setor',
+                'dt.fungsi',
+                DB::raw("COALESCE(NULLIF(TRIM(mw.nip_ar), ''), 'Unassign') as nip_ar"),
+                DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign') as nama_ar"),
+                DB::raw("COALESCE(NULLIF(TRIM(s.nama), ''), 'Unassign') as nama_seksi"),
+            ])
                 ->orderBy('s.nama', 'asc')
                 ->orderBy('p.nama', 'asc');
 
             $index = 1;
-            foreach ($query->cursor() as $row) {
+            foreach ($results->cursor() as $row) {
                 fputcsv($file, [
                     $index++,
                     ! empty($row->npwp15) ? $row->npwp15 : '',
@@ -140,37 +195,5 @@ class PkmPengawasanRepository
 
             fclose($file);
         }, 200, $headers);
-    }
-
-    /**
-     * Base Query Builder tanpa Hydration untuk Performa Maksimal
-     */
-    private function buildBaseQuery(int $tahun, int $bulan, string $seksiFilter)
-    {
-        $tahunSaatIni = (int) date('Y');
-
-        return DetilTransaksiWp::query()
-            ->toBase()
-            ->from('detil_transaksi_wp as dt')
-            ->leftJoin('masterfile_wp as mw', 'dt.npwp15', '=', 'mw.npwp15')
-            ->leftJoin('pegawai as p', function ($join) use ($tahunSaatIni) {
-                $join->on('mw.nip_ar', '=', 'p.nip')
-                    ->where('p.tahun', '=', $tahunSaatIni);
-            })
-            ->leftJoin('seksi as s', 'p.seksi', '=', 's.id')
-            ->whereIn('dt.fungsi', [
-                'akt pengawasan',
-                'lainnya',
-                'wra pengawasan',
-            ])
-            ->where('dt.thn_setor', $tahun)
-            ->whereBetween('dt.bln_setor', [1, $bulan])
-            ->when($seksiFilter !== '', function ($q) use ($seksiFilter) {
-                if ($seksiFilter === 'Unassign') {
-                    return $q->whereNull('s.nama');
-                }
-
-                return $q->where('s.nama', $seksiFilter);
-            });
     }
 }

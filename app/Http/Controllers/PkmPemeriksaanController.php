@@ -14,9 +14,6 @@ class PkmPemeriksaanController extends Controller
         protected PkmPemeriksaanRepository $repository
     ) {}
 
-    /**
-     * Tampilkan Ringkasan PKM Pemeriksaan per Wajib Pajak
-     */
     public function index(Request $request)
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
@@ -45,7 +42,7 @@ class PkmPemeriksaanController extends Controller
             abort(503, 'Data PKM Pemeriksaan sedang tidak tersedia. Silakan coba lagi.');
         }
 
-        return view('penerimaan.pkmpemeriksaan', compact(
+        return view('pkm.pemeriksaan', compact(
             'pkmData',
             'sortColumn',
             'sortDirection',
@@ -54,9 +51,6 @@ class PkmPemeriksaanController extends Controller
         ));
     }
 
-    /**
-     * Handle Export CSV Detil Transaksi Pemeriksaan
-     */
     public function exportDetil(Request $request): StreamedResponse
     {
         [$tahun, $bulan] = $this->resolvePeriod($request);
@@ -65,9 +59,6 @@ class PkmPemeriksaanController extends Controller
         return $this->repository->exportDetilCsv($tahun, $bulan, $search);
     }
 
-    /**
-     * Helper resolusi periode tahun & bulan
-     */
     private function resolvePeriod(Request $request): array
     {
         $tahun = (int) $request->input('tahun', date('Y'));

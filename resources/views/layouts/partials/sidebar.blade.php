@@ -70,19 +70,19 @@
             </div>
 
             {{-- PKM Links --}}
-            <a href="{{ route('penerimaan.pkmpengawasan') }}"
+            <a href="{{ route('pkm.pengawasan') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('penerimaan.pkmpengawasan') ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 hover:text-white text-slate-300' }}">
                 <i class="fa-solid fa-user-check text-sm w-5 text-center shrink-0"></i>
                 <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM Pengawasan</span>
             </a>
 
-            <a href="{{ route('penerimaan.pkmpemeriksaan') }}"
+            <a href="{{ route('pkm.pemeriksaan') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('penerimaan.pkmpemeriksaan') ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 hover:text-white text-slate-300' }}">
                 <i class="fa-solid fa-magnifying-glass-chart text-sm w-5 text-center shrink-0"></i>
                 <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM Pemeriksaan</span>
             </a>
 
-            <a href="{{ route('penerimaan.pkmpenagihan') }}"
+            <a href="{{ route('pkm.penagihan') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors {{ request()->routeIs('penerimaan.pkmpenagihan') ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-800 hover:text-white text-slate-300' }}">
                 <i class="fa-solid fa-gavel text-sm w-5 text-center shrink-0"></i>
                 <span x-show="sidebarOpen || isPinned" x-cloak class="truncate">PKM Penagihan</span>
