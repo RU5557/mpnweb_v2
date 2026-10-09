@@ -576,38 +576,63 @@ class SyncDataSistem extends Command
     }
 
     /**
-     * Invalidation Cache khusus untuk DashboardRepository, PenjagaanRepository & PKM Repositories
+     * Invalidation Cache terarah berdasarkan target ETL dan parameter periode.
      */
     private function invalidateDashboardCache(?string $thnSetor = null, ?string $blnSetor = null)
     {
         $this->newLine();
-        $this->comment('-> Membersihkan Cache Dashboard, Penjagaan & PKM Repository...');
+        $this->comment('-> Membersihkan Cache terkait hasil sinkronisasi...');
 
         $prefix = config('cache.prefix', '');
+        $target = $this->option('only');
 
-        Cache::forget('penjagaan_fungsi_options');
-        Cache::forget('daftar_seksi_pengawasan_v2');
+        // 1. Apabila sync menyentuh tabel referensi atau masterfile WP
+        if (in_array($target, ['all', 'ref', 'master'])) {
+            Cache::forget('penjagaan_fungsi_options');
+            Cache::forget('daftar_seksi_pengawasan_v8');
+            Cache::forget('mf_filter_klu');
+            Cache::forget('mf_filter_kelurahan');
+            Cache::forget('mf_filter_kecamatan');
+            Cache::forget('mf_filter_jenis');
+            Cache::forget('mf_filter_status');
 
-        if (! empty($thnSetor)) {
-            $patternDash = "{$prefix}dashboard_summary_v4_{$thnSetor}_%";
-            $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}filter_ar_%")->delete();
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}filter_js_%")->delete();
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}transaksi_filter_options_%")->delete();
+        }
 
-            DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
-            DB::table('cache')->where('key', 'LIKE', "{$prefix}pkm_%")->delete();
+        // 2. Apabila sync menyentuh tabel SPT
+        if (in_array($target, ['all', 'spt', 'tx'])) {
+            Cache::forget('distinct_jenis_spt');
+            Cache::forget('distinct_status_spt');
+            Cache::forget('distinct_pembetulan_spt');
+            DB::table('cache')->where('key', 'LIKE', "{$prefix}distinct_ar_%")->delete();
+        }
 
-            Cache::forget("dashboard_target_{$thnSetor}");
+        // 3. Apabila sync menyentuh data transaksi DRM / Summary Mart
+        if (in_array($target, ['all', 'tx', 'drm', 'spt'])) {
+            if (! empty($thnSetor)) {
+                // Hapus cache spesifik tahun
+                $patternDash = "{$prefix}dashboard_summary_v4_{$thnSetor}_%";
+                $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
 
-            $this->info("   [OK] Cache dashboard, penjagaan & PKM tahun {$thnSetor} berhasil dibersihkan ({$deletedDash} keys).");
-        } else {
-            $patternDash = "{$prefix}dashboard_summary_v4_%";
-            $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
+                DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
+                DB::table('cache')->where('key', 'LIKE', "{$prefix}pkm_%")->delete();
 
-            DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
-            DB::table('cache')->where('key', 'LIKE', "{$prefix}pkm_%")->delete();
+                Cache::forget("dashboard_target_{$thnSetor}");
 
-            DB::table('cache')->where('key', 'LIKE', "{$prefix}dashboard_target_%")->delete();
+                $this->info("   [OK] Cache dashboard, penjagaan & PKM tahun {$thnSetor} berhasil dibersihkan ({$deletedDash} keys).");
+            } else {
+                // Full refresh cache jika tanpa filter tahun
+                $patternDash = "{$prefix}dashboard_summary_v4_%";
+                $deletedDash = DB::table('cache')->where('key', 'LIKE', $patternDash)->delete();
 
-            $this->info("   [OK] Seluruh cache dashboard, penjagaan & PKM berhasil dibersihkan ({$deletedDash} keys).");
+                DB::table('cache')->where('key', 'LIKE', "{$prefix}penjagaan_%")->delete();
+                DB::table('cache')->where('key', 'LIKE', "{$prefix}pkm_%")->delete();
+                DB::table('cache')->where('key', 'LIKE', "{$prefix}dashboard_target_%")->delete();
+
+                $this->info("   [OK] Seluruh cache dashboard, penjagaan & PKM berhasil dibersihkan ({$deletedDash} keys).");
+            }
         }
     }
 }
