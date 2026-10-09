@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'PKM Penagihan - MPNWEB')
+@section('title', 'PKM Pemeriksaan - MPNWEB')
 
 @section('content')
 
@@ -8,29 +8,33 @@
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
 
         <div>
-            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Penerimaan PKM Penagihan</h1>
-            <p class="text-xs text-slate-500 mt-1">Rincian realisasi PKM Penagihan s.d. bulan terpilih per Juru Sita Pajak
-                Negara (JSPN)</p>
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Penerimaan PKM Pemeriksaan</h1>
+            <p class="text-xs text-slate-500 mt-1">Rincian realisasi PKM Pemeriksaan s.d. bulan terpilih per Wajib Pajak (WP)
+            </p>
         </div>
 
-        <!-- Form Filter Compact -->
-        <form action="{{ route('pkm.penagihan') }}" method="GET"
+        <!-- Form Filter + Search Bar Compact -->
+        <form action="{{ route('pkm.pemeriksaan') }}" method="GET"
             class="bg-white border border-slate-200 rounded-xl p-2 px-3 shadow-sm flex flex-wrap items-center gap-2">
             <input type="hidden" name="sort" value="{{ $sortColumn }}">
             <input type="hidden" name="direction" value="{{ $sortDirection }}">
 
-            <select name="dspc_filter"
-                class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg px-2.5 py-1.5 font-medium focus:ring-2 focus:ring-blue-500 outline-none transition cursor-pointer">
-                <option value="">Semua Flag SKP</option>
-                <option value="DSPC" {{ $dspcFilter === 'DSPC' ? 'selected' : '' }}>DSPC</option>
-                <option value="NON-DSPC" {{ $dspcFilter === 'NON-DSPC' ? 'selected' : '' }}>NON-DSPC</option>
-            </select>
+            <div class="relative flex-1 min-w-[200px]">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none text-slate-400 text-xs">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari NPWP / WP / KLU..."
+                    class="w-full pl-7 pr-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition placeholder:text-slate-400 font-medium">
+            </div>
 
             <select name="bulan"
                 class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg px-2.5 py-1.5 font-medium focus:ring-2 focus:ring-blue-500 outline-none transition cursor-pointer">
                 @foreach (range(1, 12) as $m)
+                    @php
+                        $monthName = \Carbon\Carbon::create()->month($m)->translatedFormat('F');
+                    @endphp
                     <option value="{{ $m }}" {{ $bulan == $m ? 'selected' : '' }}>
-                        s.d. {{ \Carbon\Carbon::create()->month($m)->translatedFormat('F') }}
+                        s.d. {{ $monthName }}
                     </option>
                 @endforeach
             </select>
@@ -49,14 +53,14 @@
                 <span>Terapkan</span>
             </button>
 
-            @if (request()->has('bulan') || request()->has('tahun') || request()->has('dspc_filter') || request()->has('sort'))
-                <a href="{{ route('pkm.penagihan') }}"
+            @if (request()->has('bulan') || request()->has('tahun') || request()->has('search') || request()->has('sort'))
+                <a href="{{ route('pkm.pemeriksaan') }}"
                     class="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-1.5 transition" title="Reset Filter">
                     <i class="fa-solid fa-rotate-left"></i>
                 </a>
             @endif
 
-            <a href="{{ route('pkm.penagihan.export-detil', request()->all()) }}"
+            <a href="{{ route('pkm.pemeriksaan.export-detil', request()->only(['tahun', 'bulan', 'search'])) }}"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg transition shadow-sm flex items-center gap-1.5 border border-emerald-600">
                 <i class="fa-solid fa-file-excel text-xs"></i>
                 <span>Export CSV</span>
@@ -64,16 +68,13 @@
         </form>
     </div>
 
-    <!-- TABEL PKM PENAGIHAN -->
+    <!-- TABEL PKM PEMERIKSAAN -->
     <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div class="p-4 border-b border-slate-100 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                <h2 class="text-sm font-bold text-slate-800">Tabel Realisasi PKM Penagihan</h2>
+                <div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+                <h2 class="text-sm font-bold text-slate-800">Tabel Realisasi PKM Pemeriksaan</h2>
             </div>
-            <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-md">
-                Total: {{ $pkmData->count() }} Baris
-            </span>
         </div>
 
         <div class="overflow-x-auto">
@@ -82,57 +83,44 @@
                     <tr>
                         <th class="py-3 px-3.5 w-12 text-center whitespace-nowrap">No</th>
 
-                        <th class="py-3 px-3.5 whitespace-nowrap">
-                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'nip_jspn', 'direction' => $sortColumn === 'nip_jspn' && $sortDirection === 'asc' ? 'desc' : 'asc']) }}"
-                                class="flex items-center gap-1 hover:text-blue-600 transition select-none">
-                                <span>NIP JSPN</span>
-                                @if ($sortColumn === 'nip_jspn')
-                                    <i
-                                        class="fa-solid fa-sort-{{ $sortDirection === 'asc' ? 'up' : 'down' }} text-blue-600 text-xs ml-0.5"></i>
-                                @else
-                                    <i class="fa-solid fa-sort text-slate-300 text-xs ml-0.5"></i>
-                                @endif
-                            </a>
-                        </th>
+                        @php
+                            $columns = [
+                                'npwp' => ['label' => 'NPWP', 'align' => 'left'],
+                                'nama_wp' => ['label' => 'Nama WP', 'align' => 'left'],
+                                'kd_klu' => ['label' => 'Kode KLU', 'align' => 'center'],
+                                'nm_klu' => ['label' => 'Nama KLU', 'align' => 'left'],
+                                'total_akt_pemeriksaan' => ['label' => 'Total PKM Pemeriksaan', 'align' => 'right'],
+                            ];
+                        @endphp
 
-                        <th class="py-3 px-3.5 whitespace-nowrap">
-                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'nama_jspn', 'direction' => $sortColumn === 'nama_jspn' && $sortDirection === 'asc' ? 'desc' : 'asc']) }}"
-                                class="flex items-center gap-1 hover:text-blue-600 transition select-none">
-                                <span>Nama JSPN</span>
-                                @if ($sortColumn === 'nama_jspn')
-                                    <i
-                                        class="fa-solid fa-sort-{{ $sortDirection === 'asc' ? 'up' : 'down' }} text-blue-600 text-xs ml-0.5"></i>
-                                @else
-                                    <i class="fa-solid fa-sort text-slate-300 text-xs ml-0.5"></i>
-                                @endif
-                            </a>
-                        </th>
-
-                        <th class="py-3 px-3.5 text-center whitespace-nowrap">
-                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'flag_skp', 'direction' => $sortColumn === 'flag_skp' && $sortDirection === 'asc' ? 'desc' : 'asc']) }}"
-                                class="flex items-center justify-center gap-1 hover:text-blue-600 transition select-none">
-                                <span>Flag SKP</span>
-                                @if ($sortColumn === 'flag_skp')
-                                    <i
-                                        class="fa-solid fa-sort-{{ $sortDirection === 'asc' ? 'up' : 'down' }} text-blue-600 text-xs ml-0.5"></i>
-                                @else
-                                    <i class="fa-solid fa-sort text-slate-300 text-xs ml-0.5"></i>
-                                @endif
-                            </a>
-                        </th>
-
-                        <th class="py-3 px-3.5 text-right whitespace-nowrap">
-                            <a href="{{ request()->fullUrlWithQuery(['sort' => 'akt_penagihan', 'direction' => $sortColumn === 'akt_penagihan' && $sortDirection === 'asc' ? 'desc' : 'asc']) }}"
-                                class="flex items-center justify-end gap-1 hover:text-blue-600 transition select-none">
-                                <span>Total PKM Penagihan</span>
-                                @if ($sortColumn === 'akt_penagihan')
-                                    <i
-                                        class="fa-solid fa-sort-{{ $sortDirection === 'asc' ? 'up' : 'down' }} text-blue-600 text-xs ml-0.5"></i>
-                                @else
-                                    <i class="fa-solid fa-sort text-slate-300 text-xs ml-0.5"></i>
-                                @endif
-                            </a>
-                        </th>
+                        @foreach ($columns as $colKey => $colMeta)
+                            @php
+                                $nextDirection = $sortColumn === $colKey && $sortDirection === 'asc' ? 'desc' : 'asc';
+                                $sortUrl = request()->fullUrlWithQuery([
+                                    'sort' => $colKey,
+                                    'direction' => $nextDirection,
+                                ]);
+                                $alignClass = match ($colMeta['align']) {
+                                    'center' => 'text-center justify-center',
+                                    'right' => 'text-right justify-end',
+                                    default => 'justify-start',
+                                };
+                            @endphp
+                            <th
+                                class="py-3 px-3.5 whitespace-nowrap {{ $colMeta['align'] === 'center' ? 'text-center' : ($colMeta['align'] === 'right' ? 'text-right' : '') }}">
+                                <a href="{{ $sortUrl }}"
+                                    class="flex items-center {{ $alignClass }} gap-1 hover:text-blue-600 transition select-none">
+                                    <span>{{ $colMeta['label'] }}</span>
+                                    @if ($sortColumn !== $colKey)
+                                        <i class="fa-solid fa-sort text-slate-300 text-xs ml-0.5"></i>
+                                    @elseif($sortDirection === 'asc')
+                                        <i class="fa-solid fa-sort-up text-blue-600 text-xs ml-0.5"></i>
+                                    @else
+                                        <i class="fa-solid fa-sort-down text-blue-600 text-xs ml-0.5"></i>
+                                    @endif
+                                </a>
+                            </th>
+                        @endforeach
                     </tr>
                 </thead>
 
@@ -140,47 +128,32 @@
                     @forelse($pkmData as $index => $row)
                         <tr class="hover:bg-slate-50 transition">
                             <td class="py-2.5 px-3.5 text-center text-slate-400 font-mono">
-                                {{ $index + 1 }}
+                                {{ $pkmData->firstItem() + $index }}
                             </td>
-
                             <td class="py-2.5 px-3.5 font-mono font-semibold text-slate-800 whitespace-nowrap">
-                                @if ($row->nip_jspn === 'Unassign')
-                                    <span class="text-rose-600 italic font-sans font-medium">Unassign</span>
-                                @else
-                                    {{ $row->nip_jspn }}
-                                @endif
+                                {{ $row->npwp15 }}
                             </td>
-
                             <td class="py-2.5 px-3.5 text-slate-900 font-semibold">
-                                @if ($row->nama_jspn === 'Unassign')
-                                    <span class="text-rose-600 italic font-medium">Unassign</span>
+                                @if ($row->nama_wp === 'WP Tidak Terdaftar')
+                                    <span class="text-rose-600 italic">WP Tidak Terdaftar</span>
                                 @else
-                                    {{ $row->nama_jspn }}
+                                    {{ $row->nama_wp }}
                                 @endif
                             </td>
-
-                            <td class="py-2.5 px-3.5 text-center whitespace-nowrap">
-                                @if (strtoupper($row->flag_skp) === 'DSPC')
-                                    <span
-                                        class="bg-amber-50 text-amber-700 border border-amber-200 text-[11px] px-2 py-0.5 rounded-md font-semibold">
-                                        DSPC
-                                    </span>
-                                @else
-                                    <span
-                                        class="bg-slate-100 text-slate-600 border border-slate-200 text-[11px] px-2 py-0.5 rounded-md font-semibold">
-                                        NON-DSPC
-                                    </span>
-                                @endif
+                            <td class="py-2.5 px-3.5 text-center font-mono text-slate-600 whitespace-nowrap">
+                                {{ $row->kd_klu }}
                             </td>
-
-                            <td class="py-2.5 px-3.5 text-right font-mono font-bold text-amber-600 whitespace-nowrap">
-                                Rp {{ number_format($row->akt_penagihan ?? 0, 0, ',', '.') }}
+                            <td class="py-2.5 px-3.5 text-slate-600 max-w-xs truncate" title="{{ $row->nm_klu }}">
+                                {{ $row->nm_klu }}
+                            </td>
+                            <td class="py-2.5 px-3.5 text-right font-mono font-bold text-blue-600 whitespace-nowrap">
+                                Rp {{ number_format($row->total_akt_pemeriksaan ?? 0, 0, ',', '.') }}
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="py-10 text-center text-slate-400 italic text-xs">
-                                Tidak ada data PKM Penagihan yang sesuai dengan filter.
+                            <td colspan="6" class="py-10 text-center text-slate-400 italic text-xs">
+                                Tidak ada data PKM Pemeriksaan yang sesuai dengan filter/pencarian.
                             </td>
                         </tr>
                     @endforelse
@@ -189,15 +162,19 @@
                 @if ($pkmData->count() > 0)
                     <tfoot class="bg-slate-100/80 font-bold text-slate-900 border-t-2 border-slate-200 text-xs">
                         <tr>
-                            <td colspan="4" class="py-3 px-3.5 text-center tracking-wider uppercase">Total Keseluruhan
+                            <td colspan="5" class="py-3 px-3.5 text-center tracking-wider uppercase">Total Subhalaman Ini
                             </td>
-                            <td class="py-3 px-3.5 text-right font-mono text-amber-700 whitespace-nowrap">
-                                Rp {{ number_format($pkmData->sum('akt_penagihan'), 0, ',', '.') }}
+                            <td class="py-3 px-3.5 text-right font-mono text-blue-700 whitespace-nowrap">
+                                Rp {{ number_format($pkmData->sum('total_akt_pemeriksaan'), 0, ',', '.') }}
                             </td>
                         </tr>
                     </tfoot>
                 @endif
             </table>
+        </div>
+
+        <div class="p-3 border-t border-slate-100 bg-slate-50">
+            {{ $pkmData->links() }}
         </div>
     </div>
 

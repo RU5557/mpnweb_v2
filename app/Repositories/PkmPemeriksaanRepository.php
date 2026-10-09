@@ -19,26 +19,27 @@ class PkmPemeriksaanRepository
         int $page = 1,
         int $perPage = 10
     ): LengthAwarePaginator {
+        // Kolom sort yang valid
         $allowedSorts = [
             'npwp' => 'sp.npwp15',
-            'nama_wp' => DB::raw("COALESCE(mw.nama, 'WP Tidak Terdaftar')"),
-            'kd_klu' => DB::raw("COALESCE(mw.klu, '-')"),
-            'nm_klu' => DB::raw("COALESCE(k.nm_klu, '-')"),
-            'total_akt_pemeriksaan' => 'total_akt_pemeriksaan',
+            'nama_wp' => 'mw.nama',
+            'kd_klu' => 'mw.klu',
+            'nm_klu' => 'k.nm_klu',
+            'total_akt_pemeriksaan' => DB::raw('SUM(sp.total_setor)'),
         ];
 
-        $sortBy = $allowedSorts[$sortColumn] ?? 'total_akt_pemeriksaan';
+        $sortBy = $allowedSorts[$sortColumn] ?? DB::raw('SUM(sp.total_setor)');
         $sortDir = strtolower($sortDirection) === 'asc' ? 'asc' : 'desc';
 
-        $cacheKey = "pkm_pemeriksaan_v3_{$tahun}_{$bulan}_s".md5($search)."_{$sortColumn}_{$sortDir}_p{$page}";
+        $cacheKey = "pkm_pemeriksaan_v7_{$tahun}_{$bulan}_s".md5($search)."_{$sortColumn}_{$sortDir}_p{$page}";
 
         return Cache::remember($cacheKey, 600, function () use ($tahun, $bulan, $search, $sortBy, $sortDir, $perPage) {
             return SummaryPkm::query()
                 ->toBase()
                 ->from('summary_pkm as sp')
-                ->leftJoin('masterfile_wp as mw', 'sp.npwp15', '=', 'mw.npwp15')
+                ->leftJoin('mfwp as mw', 'sp.npwp15', '=', 'mw.npwp15')
                 ->leftJoin('klu as k', 'mw.klu', '=', 'k.kd_klu')
-                ->where('sp.fungsi', 'akt pemeriksaan')
+                ->where('sp.fungsi', 'AKT PEMERIKSAAN')
                 ->where('sp.thn_setor', $tahun)
                 ->whereBetween('sp.bln_setor', [1, $bulan])
                 ->when($search !== '', function ($query) use ($search) {
@@ -53,11 +54,12 @@ class PkmPemeriksaanRepository
                 })
                 ->select([
                     'sp.npwp15',
-                    DB::raw("COALESCE(mw.nama, 'WP Tidak Terdaftar') as nama_wp"),
-                    DB::raw("COALESCE(mw.klu, '-') as kd_klu"),
-                    DB::raw("COALESCE(k.nm_klu, '-') as nm_klu"),
+                    DB::raw("COALESCE(NULLIF(TRIM(mw.nama), ''), 'WP Tidak Terdaftar') as nama_wp"),
+                    DB::raw("COALESCE(NULLIF(TRIM(mw.klu), ''), '-') as kd_klu"),
+                    DB::raw("COALESCE(NULLIF(TRIM(k.nm_klu), ''), '-') as nm_klu"),
                     DB::raw('SUM(sp.total_setor) as total_akt_pemeriksaan'),
                 ])
+                // Masukkan nama kolom fisik secara langsung di groupBy agar kompatibel dengan ONLY_FULL_GROUP_BY (MySQL Error 1055)
                 ->groupBy('sp.npwp15', 'mw.nama', 'mw.klu', 'k.nm_klu')
                 ->orderBy($sortBy, $sortDir)
                 ->paginate($perPage)
@@ -89,9 +91,9 @@ class PkmPemeriksaanRepository
             ]);
 
             $query = DB::table('drm as dt')
-                ->leftJoin('masterfile_wp as mw', 'dt.npwp15', '=', 'mw.npwp15')
+                ->leftJoin('mfwp as mw', 'dt.npwp15', '=', 'mw.npwp15')
                 ->leftJoin('klu as k', 'mw.klu', '=', 'k.kd_klu')
-                ->where('dt.fungsi', 'akt pemeriksaan')
+                ->where('dt.fungsi', 'AKT PEMERIKSAAN')
                 ->where('dt.thn_setor', $tahun)
                 ->whereBetween('dt.bln_setor', [1, $bulan])
                 ->when($search !== '', function ($query) use ($search) {
@@ -106,9 +108,9 @@ class PkmPemeriksaanRepository
                 })
                 ->select([
                     'dt.npwp15',
-                    DB::raw("COALESCE(mw.nama, 'WP Tidak Terdaftar') as nama_wp"),
-                    DB::raw("COALESCE(mw.klu, '-') as kd_klu"),
-                    DB::raw("COALESCE(k.nm_klu, '-') as nm_klu"),
+                    DB::raw("COALESCE(NULLIF(TRIM(mw.nama), ''), 'WP Tidak Terdaftar') as nama_wp"),
+                    DB::raw("COALESCE(NULLIF(TRIM(mw.klu), ''), '-') as kd_klu"),
+                    DB::raw("COALESCE(NULLIF(TRIM(k.nm_klu), ''), '-') as nm_klu"),
                     'dt.kd_map',
                     'dt.kd_bayar',
                     'dt.jml_setor',

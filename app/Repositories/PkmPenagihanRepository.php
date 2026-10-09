@@ -20,48 +20,44 @@ class PkmPenagihanRepository
         $allowedSorts = [
             'nip_jspn' => 'nip_jspn',
             'nama_jspn' => 'nama_jspn',
-            'flag_skp' => 'flag_skp',
+            'flag_skp' => 'sp.flag_skp',
             'akt_penagihan' => 'akt_penagihan',
         ];
 
         $sortBy = $allowedSorts[$sortColumn] ?? 'nip_jspn';
         $sortDir = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
 
-        $cacheKey = "pkm_penagihan_v3_{$tahun}_{$bulan}_{$dspcFilter}_{$sortBy}_{$sortDir}";
+        $cacheKey = "pkm_penagihan_v5_{$tahun}_{$bulan}_d".md5($dspcFilter)."_{$sortColumn}_{$sortDir}";
 
         return Cache::remember($cacheKey, 600, function () use ($tahun, $bulan, $dspcFilter, $sortBy, $sortDir) {
-            $subPegawai = DB::table('pegawai')->where('tahun', $tahun);
+            $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
 
-            return SummaryPkm::query()
+            $query = SummaryPkm::query()
                 ->toBase()
                 ->from('summary_pkm as sp')
-                ->leftJoin('masterfile_wp as mw', 'sp.npwp15', '=', 'mw.npwp15')
-                ->leftJoinSub($subPegawai, 'p', function ($join) {
-                    $join->on('mw.nip_js', '=', 'p.nip');
+                ->leftJoin('mfwp as mw', 'sp.npwp15', '=', 'mw.npwp15')
+                ->leftJoin('pegawai as p', function ($join) use ($tahunPegawai) {
+                    $join->on('mw.nip_js', '=', 'p.nip')
+                        ->where('p.tahun', '=', $tahunPegawai);
                 })
-                ->where('sp.fungsi', 'akt penagihan')
+                ->where('sp.fungsi', 'AKT PENAGIHAN')
                 ->where('sp.thn_setor', $tahun)
-                ->whereBetween('sp.bln_setor', [1, $bulan])
-                ->when($dspcFilter !== '', function ($query) use ($dspcFilter) {
-                    if ($dspcFilter === 'DSPC') {
-                        return $query->where('sp.flag_skp', 'DSPC');
-                    }
+                ->whereBetween('sp.bln_setor', [1, $bulan]);
 
-                    return $query->where(function ($q) {
-                        $q->where('sp.flag_skp', '!=', 'DSPC')
-                            ->orWhereNull('sp.flag_skp');
-                    });
-                })
-                ->select([
-                    DB::raw("COALESCE(mw.nip_js, 'Unassign') as nip_jspn"),
-                    DB::raw("COALESCE(p.nama, 'Unassign') as nama_jspn"),
-                    DB::raw("COALESCE(sp.flag_skp, 'NON-DSPC') as flag_skp"),
-                    DB::raw('SUM(sp.total_setor) as akt_penagihan'),
-                ])
+            if ($dspcFilter !== '') {
+                $query->where('sp.flag_skp', $dspcFilter);
+            }
+
+            return $query->select([
+                DB::raw("CASE WHEN p.nama IS NULL THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
+                DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign') as nama_jspn"),
+                DB::raw("COALESCE(NULLIF(TRIM(sp.flag_skp), ''), 'NON-DSPC') as flag_skp"),
+                DB::raw('SUM(sp.total_setor) as akt_penagihan'),
+            ])
                 ->groupBy(
-                    DB::raw("COALESCE(mw.nip_js, 'Unassign')"),
-                    DB::raw("COALESCE(p.nama, 'Unassign')"),
-                    DB::raw("COALESCE(sp.flag_skp, 'NON-DSPC')")
+                    DB::raw("CASE WHEN p.nama IS NULL THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END"),
+                    DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign')"),
+                    DB::raw("COALESCE(NULLIF(TRIM(sp.flag_skp), ''), 'NON-DSPC')")
                 )
                 ->orderBy($sortBy, $sortDir)
                 ->get();
@@ -87,36 +83,30 @@ class PkmPenagihanRepository
             fwrite($file, "\xEF\xBB\xBF");
 
             fputcsv($file, [
-                'NO', 'NPWP', 'NAMA WP', 'NIP JSPN', 'NAMA JSPN', 'FLAG SKP',
-                'KD MAP', 'KD BAYAR', 'FUNGSI', 'BULAN', 'TAHUN', 'JUMLAH SETOR',
+                'NO', 'NIP JSPN', 'NAMA JSPN', 'NPWP', 'NAMA WP',
+                'FLAG SKP', 'KD MAP', 'KD BAYAR', 'FUNGSI', 'BULAN', 'TAHUN', 'JUMLAH SETOR',
             ]);
 
-            $subPegawai = DB::table('pegawai')->where('tahun', $tahun);
+            $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
 
             $query = DB::table('drm as dt')
-                ->leftJoin('masterfile_wp as mw', 'dt.npwp15', '=', 'mw.npwp15')
-                ->leftJoinSub($subPegawai, 'p', function ($join) {
-                    $join->on('mw.nip_js', '=', 'p.nip');
+                ->leftJoin('mfwp as mw', 'dt.npwp15', '=', 'mw.npwp15')
+                ->leftJoin('pegawai as p', function ($join) use ($tahunPegawai) {
+                    $join->on('mw.nip_js', '=', 'p.nip')
+                        ->where('p.tahun', '=', $tahunPegawai);
                 })
-                ->where('dt.fungsi', 'akt penagihan')
+                ->where('dt.fungsi', 'AKT PENAGIHAN')
                 ->where('dt.thn_setor', $tahun)
                 ->whereBetween('dt.bln_setor', [1, $bulan])
-                ->when($dspcFilter !== '', function ($query) use ($dspcFilter) {
-                    if ($dspcFilter === 'DSPC') {
-                        return $query->where('dt.flag_skp', 'DSPC');
-                    }
-
-                    return $query->where(function ($q) {
-                        $q->where('dt.flag_skp', '!=', 'DSPC')
-                            ->orWhereNull('dt.flag_skp');
-                    });
+                ->when($dspcFilter !== '', function ($q) use ($dspcFilter) {
+                    return $q->where('dt.flag_skp', $dspcFilter);
                 })
                 ->select([
+                    DB::raw("COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') as nip_jspn"),
+                    DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign') as nama_jspn"),
                     'dt.npwp15',
-                    DB::raw("COALESCE(mw.nama, '-') as nama_wp"),
-                    DB::raw("COALESCE(mw.nip_js, 'Unassign') as nip_jspn"),
-                    DB::raw("COALESCE(p.nama, 'Unassign') as nama_jspn"),
-                    DB::raw("COALESCE(dt.flag_skp, 'NON-DSPC') as flag_skp"),
+                    DB::raw("COALESCE(NULLIF(TRIM(mw.nama), ''), 'WP Tidak Terdaftar') as nama_wp"),
+                    DB::raw("COALESCE(NULLIF(TRIM(dt.flag_skp), ''), 'NON-DSPC') as flag_skp"),
                     'dt.kd_map',
                     'dt.kd_bayar',
                     'dt.jml_setor',
@@ -131,10 +121,10 @@ class PkmPenagihanRepository
             foreach ($query->cursor() as $row) {
                 fputcsv($file, [
                     $index++,
-                    ! empty($row->npwp15) ? $row->npwp15 : '',
-                    $row->nama_wp,
                     $row->nip_jspn,
                     $row->nama_jspn,
+                    $row->npwp15,
+                    $row->nama_wp,
                     $row->flag_skp,
                     $row->kd_map,
                     $row->kd_bayar,
@@ -144,7 +134,7 @@ class PkmPenagihanRepository
                     $row->jml_setor,
                 ]);
 
-                if ($index % 2000 === 0 && ob_get_level() > 0) {
+                if ($index % 1000 === 0 && ob_get_level() > 0) {
                     ob_flush();
                     flush();
                 }
