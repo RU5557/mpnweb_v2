@@ -69,7 +69,7 @@ class PkmPemeriksaanRepository
 
     public function exportDetilCsv(int $tahun, int $bulan, string $search): StreamedResponse
     {
-        $filename = "Export_Detil_PKM_Pemeriksaan_{$tahun}_{$bulan}.csv";
+        $filename = "detil_pkm_pemeriksaan_{$tahun}_{$bulan}.csv";
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',

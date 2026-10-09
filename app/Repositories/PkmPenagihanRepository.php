@@ -17,17 +17,18 @@ class PkmPenagihanRepository
         string $sortColumn,
         string $sortDirection
     ): Collection {
+        // Map kolom sort
         $allowedSorts = [
             'nip_jspn' => 'nip_jspn',
             'nama_jspn' => 'nama_jspn',
-            'flag_skp' => 'sp.flag_skp',
+            'flag_skp' => 'flag_skp',
             'akt_penagihan' => 'akt_penagihan',
         ];
 
         $sortBy = $allowedSorts[$sortColumn] ?? 'nip_jspn';
         $sortDir = strtolower($sortDirection) === 'desc' ? 'desc' : 'asc';
 
-        $cacheKey = "pkm_penagihan_v5_{$tahun}_{$bulan}_d".md5($dspcFilter)."_{$sortColumn}_{$sortDir}";
+        $cacheKey = "pkm_penagihan_agregat_v1_{$tahun}_{$bulan}_d".md5($dspcFilter)."_{$sortColumn}_{$sortDir}";
 
         return Cache::remember($cacheKey, 600, function () use ($tahun, $bulan, $dspcFilter, $sortBy, $sortDir) {
             $tahunPegawai = $tahun > 0 ? $tahun : (int) date('Y');
@@ -48,17 +49,23 @@ class PkmPenagihanRepository
                 $query->where('sp.flag_skp', $dspcFilter);
             }
 
-            return $query->select([
-                DB::raw("CASE WHEN p.nama IS NULL THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
-                DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign') as nama_jspn"),
+            // Subquery wrapper agar grouping murni membaca ekspresi akhir 'Unassign' tanpa terpecah
+            $subQuery = $query->select([
+                DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
+                DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE TRIM(p.nama) END as nama_jspn"),
                 DB::raw("COALESCE(NULLIF(TRIM(sp.flag_skp), ''), 'NON-DSPC') as flag_skp"),
-                DB::raw('SUM(sp.total_setor) as akt_penagihan'),
-            ])
-                ->groupBy(
-                    DB::raw("CASE WHEN p.nama IS NULL THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END"),
-                    DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign')"),
-                    DB::raw("COALESCE(NULLIF(TRIM(sp.flag_skp), ''), 'NON-DSPC')")
-                )
+                'sp.total_setor',
+            ]);
+
+            return DB::table(DB::raw("({$subQuery->toSql()}) as agg"))
+                ->mergeBindings($subQuery)
+                ->select([
+                    'nip_jspn',
+                    'nama_jspn',
+                    'flag_skp',
+                    DB::raw('SUM(total_setor) as akt_penagihan'),
+                ])
+                ->groupBy('nip_jspn', 'nama_jspn', 'flag_skp')
                 ->orderBy($sortBy, $sortDir)
                 ->get();
         });
@@ -66,7 +73,7 @@ class PkmPenagihanRepository
 
     public function exportDetilCsv(int $tahun, int $bulan, string $dspcFilter): StreamedResponse
     {
-        $filename = "Export_Detil_PKM_Penagihan_{$tahun}_{$bulan}.csv";
+        $filename = "detil_pkm_penagihan_{$tahun}_{$bulan}.csv";
 
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
@@ -102,8 +109,8 @@ class PkmPenagihanRepository
                     return $q->where('dt.flag_skp', $dspcFilter);
                 })
                 ->select([
-                    DB::raw("COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') as nip_jspn"),
-                    DB::raw("COALESCE(NULLIF(TRIM(p.nama), ''), 'Unassign') as nama_jspn"),
+                    DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE COALESCE(NULLIF(TRIM(mw.nip_js), ''), 'Unassign') END as nip_jspn"),
+                    DB::raw("CASE WHEN p.nama IS NULL OR TRIM(p.nama) = '' THEN 'Unassign' ELSE TRIM(p.nama) END as nama_jspn"),
                     'dt.npwp15',
                     DB::raw("COALESCE(NULLIF(TRIM(mw.nama), ''), 'WP Tidak Terdaftar') as nama_wp"),
                     DB::raw("COALESCE(NULLIF(TRIM(dt.flag_skp), ''), 'NON-DSPC') as flag_skp"),
@@ -114,7 +121,7 @@ class PkmPenagihanRepository
                     'dt.thn_setor',
                     'dt.fungsi',
                 ])
-                ->orderBy('p.nama', 'asc')
+                ->orderBy('nama_jspn', 'asc')
                 ->orderBy('dt.bln_setor', 'asc');
 
             $index = 1;
