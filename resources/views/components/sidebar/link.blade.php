@@ -1,16 +1,25 @@
 @props(['label', 'icon', 'route', 'active' => false])
 
-@if(\Illuminate\Support\Facades\Route::has($route))
-<a href="{{ route($route) }}"
-   class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all duration-150
-   {{ $active ? 'bg-blue-950 text-amber-400 border border-amber-500/40 shadow-md' : 'hover:bg-blue-950/50 hover:text-white text-slate-400' }}"
->
-    <i class="fa-solid {{ $icon }} text-sm w-5 text-center shrink-0 {{ $active ? 'text-amber-400' : 'text-slate-400' }}"></i>
-    <span x-show="isExpanded" x-cloak x-transition.opacity class="truncate whitespace-nowrap">{{ $label }}</span>
-</a>
+@php
+    $isActive = $active;
+    $hasRoute = \Illuminate\Support\Facades\Route::has($route);
+@endphp
+
+@if ($hasRoute)
+    <a href="{{ route($route) }}"
+        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[12.5px] font-medium transition-all duration-200 group
+   {{ $isActive
+       ? 'bg-[#112A46] text-white border border-amber-500/30 shadow-md shadow-black/20'
+       : 'text-slate-300 hover:bg-[#112A46] hover:text-white border border-transparent' }}">
+        <i
+            class="fa-solid {{ $icon }} w-5 text-center text-[13px] {{ $isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-amber-400' }} transition-colors"></i>
+        <span x-show="isExpanded" x-cloak x-transition.opacity class="whitespace-nowrap">{{ $label }}</span>
+    </a>
 @else
-<span class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold text-slate-600 cursor-not-allowed">
-    <i class="fa-solid {{ $icon }} text-sm w-5 text-center shrink-0"></i>
-    <span x-show="isExpanded" x-cloak class="truncate">{{ $label }}</span>
-</span>
+    <div
+        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[12.5px] font-medium text-slate-500 border border-transparent opacity-60 cursor-not-allowed">
+        <i class="fa-solid {{ $icon }} w-5 text-center text-[13px] text-slate-500"></i>
+        <span x-show="isExpanded" x-cloak x-transition.opacity class="whitespace-nowrap">{{ $label }}</span>
+        <span x-show="isExpanded" class="ml-auto text-[9px] bg-slate-800 px-1.5 py-0.5 rounded font-mono">soon</span>
+    </div>
 @endif
