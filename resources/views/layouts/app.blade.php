@@ -25,7 +25,8 @@
     <div :class="isExpanded ? 'ml-60' : 'ml-16'" class="flex-grow transition-all duration-300 ease-in-out flex flex-col min-h-screen min-w-0">
         @include('layouts.partials.topbar')
         <main class="px-4 sm:px-6 py-6 flex-grow bg-slate-100/80 min-w-0">
-            <div class="max-w-7xl mx-auto w-full min-w-0 space-y-6">
+            {{-- FIX: ganti space-y-6 jadi flex flex-col gap-6 biar gap otomatis hilang kalau child di-remove --}}
+            <div class="max-w-7xl mx-auto w-full min-w-0 flex flex-col gap-6">
                 <x-layout.flash />
                 @yield('content')
             </div>

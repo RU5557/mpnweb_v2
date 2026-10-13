@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\RollingText;
 use App\Models\Target;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class AdminController extends Controller
 {
@@ -62,6 +63,9 @@ class AdminController extends Controller
             $cleanedData
         );
 
+        // Opsional: Jika target juga ditampilkan di cache dashboard, bisa forget juga
+        // Cache::forget('mpnweb_target_'.$request->tahun);
+
         return redirect()->back()->with('success', 'Target tahunan berhasil diperbarui!');
     }
 
@@ -81,6 +85,10 @@ class AdminController extends Controller
             'ranking_nasional' => $request->ranking_nasional,
             'ranking_kanwil' => $request->ranking_kanwil,
         ]);
+
+        // PENTING: Hapus cache lama biar topbar langsung update real-time
+        // Tanpa ini, user masih lihat data lama sampai 5 menit
+        Cache::forget('mpnweb_rolling_text');
 
         return redirect()->back()->with('success', 'Rolling text harian berhasil diperbarui!');
     }
