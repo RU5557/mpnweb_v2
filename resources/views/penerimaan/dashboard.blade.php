@@ -104,7 +104,6 @@
             <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
                 <h2 class="text-xs font-extrabold text-blue-950 uppercase tracking-wider flex items-center gap-2"><i
                         class="fa-solid fa-list-check text-amber-500"></i>Breakdown Target & Realisasi Per Komponen</h2>
-                <span class="text-[11px] text-slate-400 font-mono">6 Variabel Metrik - Cache 600s</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
