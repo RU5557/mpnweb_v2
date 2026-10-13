@@ -1,25 +1,32 @@
 @props(['rollingText'])
 
-<div class="flex items-center gap-3 text-xs font-medium text-slate-700 overflow-hidden max-w-4xl">
-    <span class="bg-amber-50 border border-amber-300 text-blue-950 text-[11px] px-2.5 py-1 rounded-md font-extrabold flex items-center gap-1.5 whitespace-nowrap shrink-0">
-        <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-        </span>
-        Kinerja Harian
-    </span>
-
-    <div class="truncate text-xs text-slate-600 flex items-center gap-2">
-        @if($rollingText)
-            <span class="text-slate-400 font-mono text-[11px] shrink-0"><i class="fa-regular fa-clock mr-1 text-amber-500"></i>{{ \Carbon\Carbon::parse($rollingText->tanggal)->format('d/m/Y') }}</span>
-            <span class="text-slate-300">|</span>
-            <span>NKO: <strong class="text-blue-950 font-mono font-extrabold">{{ number_format($rollingText->nko, 2) }}%</strong></span>
-            <span class="text-slate-300">|</span>
-            <span>Rank Nasional: <strong class="text-blue-950 font-mono font-extrabold">#{{ $rollingText->ranking_nasional }}</strong></span>
-            <span class="text-slate-300">|</span>
-            <span>Rank Kanwil: <strong class="text-blue-950 font-mono font-extrabold">#{{ $rollingText->ranking_kanwil }}</strong></span>
-        @else
-            <span class="text-slate-400 italic flex items-center gap-1"><i class="fa-solid fa-circle-info text-amber-500"></i> Belum ada data info kinerja harian.</span>
-        @endif
+@if ($rollingText)
+    <div class="flex items-center gap-3 text-[12.5px] min-w-0 overflow-hidden">
+        <div
+            class="flex items-center gap-1.5 bg-amber-50 border border-amber-200/80 text-amber-900 px-3 py-1 rounded-full text-[11px] font-bold shadow-sm shrink-0">
+            <span class="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+            Kinerja Harian
+        </div>
+        <div class="flex items-center gap-3 font-medium text-slate-600 min-w-0">
+            <span class="flex items-center gap-1 shrink-0 text-slate-500">
+                <i class="fa-regular fa-clock text-amber-500 text-xs"></i>
+                <span
+                    class="font-mono text-[12px]">{{ \Carbon\Carbon::parse($rollingText->tanggal)->format('d/m/Y') }}</span>
+            </span>
+            <span class="w-px h-3.5 bg-slate-200 shrink-0"></span>
+            <span class="shrink-0">NKO: <span
+                    class="font-extrabold text-slate-900 font-mono text-[13px]">{{ number_format($rollingText->nko, 2, ',', '.') }}%</span></span>
+            <span class="w-px h-3.5 bg-slate-200 shrink-0 hidden sm:block"></span>
+            <span class="shrink-0 hidden sm:inline">Rank Nasional: <span
+                    class="font-bold text-blue-950">#{{ $rollingText->ranking_nasional }}</span></span>
+            <span class="w-px h-3.5 bg-slate-200 shrink-0 hidden md:block"></span>
+            <span class="shrink-0 hidden md:inline">Rank Kanwil: <span
+                    class="font-bold text-blue-950">#{{ $rollingText->ranking_kanwil }}</span></span>
+        </div>
     </div>
-</div>
+@else
+    <div class="flex items-center gap-2 text-[12px] text-slate-400">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>Data kinerja harian belum tersedia</span>
+    </div>
+@endif
