@@ -1,12 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Penjagaan vs Bulan Lalu - MPNWEB')
 @section('content')
-    <div class="space-y-4 font-sans" x-data="{
-        allFungsiOptions: {{ json_encode($fungsiOptions->toArray()) }},
-        selectedFungsi: {{ json_encode(array_values($fungsi)) }},
-        openFungsi: false,
-        toggleAllFungsi(checked) { this.selectedFungsi = checked ? [...this.allFungsiOptions] : [] }
-    }">
+    <div class="space-y-4 font-sans" x-data="{ allFungsiOptions: {{ json_encode($fungsiOptions->toArray()) }}, selectedFungsi: {{ json_encode(array_values($fungsi)) }}, openFungsi: false, toggleAllFungsi(c) { this.selectedFungsi = c ? [...this.allFungsiOptions] : [] } }">
 
         <x-layout.page-header title="Penjagaan vs Bulan Lalu"
             subtitle="Bulan {{ $bulan }} {{ $tahunIni }} vs Bulan {{ $bulanLalu }} {{ $tahunBulanLalu }} (perbandingan harian)"
@@ -34,14 +29,11 @@
                     </button>
                     <div x-show="openFungsi" @click.outside="openFungsi=false" x-transition x-cloak
                         class="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3 space-y-2">
-                        <div
-                            class="text-xs font-extrabold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100">
-                            Pilih Fungsi</div>
+                        <div class="text-xs font-extrabold text-slate-400 uppercase pb-1 border-b">Pilih Fungsi</div>
                         <div class="max-h-56 overflow-y-auto space-y-1 pr-1">
                             <label
-                                class="flex items-center gap-2 text-xs font-semibold text-blue-950 hover:bg-slate-50 p-1.5 rounded cursor-pointer border-b border-slate-100 mb-1"><input
-                                    type="checkbox"
-                                    :checked="selectedFungsi.length === allFungsiOptions.length && allFungsiOptions.length > 0"
+                                class="flex items-center gap-2 text-xs font-semibold text-blue-950 hover:bg-slate-50 p-1.5 rounded cursor-pointer border-b mb-1"><input
+                                    type="checkbox" :checked="selectedFungsi.length === allFungsiOptions.length"
                                     @change="toggleAllFungsi($event.target.checked)"
                                     class="rounded border-slate-300 text-blue-950"><span>Pilih Semua</span></label>
                             @foreach ($fungsiOptions as $opt)
@@ -55,155 +47,49 @@
                     </div>
                 </div>
                 <button type="submit"
-                    class="bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/30 text-xs font-bold px-3 py-1.5 rounded-md transition shadow-sm flex items-center gap-1.5"><i
+                    class="bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/30 text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5"><i
                         class="fa-solid fa-filter text-xs"></i><span>Terapkan</span></button>
                 @if (request()->has('fungsi'))
                     <a href="{{ route('penerimaan.penjagaan.vs-bulan-lalu', ['bulan' => $bulan]) }}"
-                        class="text-slate-400 hover:text-slate-700 p-1.5 rounded transition" title="Reset"><i
+                        class="text-slate-400 hover:text-slate-700 p-1.5 rounded" title="Reset"><i
                             class="fa-solid fa-rotate-left text-xs"></i></a>
                 @endif
                 <a href="{{ route('penerimaan.penjagaan.vs-bulan-lalu.export-detil', request()->all()) }}"
-                    class="bg-white hover:bg-slate-50 text-blue-950 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-md transition flex items-center gap-1.5"><i
-                        class="fa-solid fa-file-excel text-xs text-emerald-600"></i><span>Export CSV</span></a>
+                    class="bg-white hover:bg-slate-50 text-blue-950 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-md flex items-center gap-1.5"><i
+                        class="fa-solid fa-file-excel text-xs text-emerald-600"></i><span>Export</span></a>
             </form>
         </x-layout.page-header>
 
-        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm w-full border-t-4 border-t-blue-950">
+        @php
+            $tIni = $totalIni ?? array_sum($dataBulanIni);
+            $tLalu = $totalLalu ?? array_sum($dataBulanLalu);
+            $growth = $growth ?? ($tLalu != 0 ? (($tIni - $tLalu) / $tLalu) * 100 : 0);
+        @endphp
+
+        <x-penjagaan-chips :fungsi="$fungsi" :totalIni="$tIni" :totalLalu="$tLalu" :bulan="$bulan" />
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <x-penjagaan-mini-card title="Bulan {{ $bulan }}/{{ $tahunIni }} (Ini)" :value="$tIni"
+                icon="fa-calendar-check" :growth="$growth" type="primary" />
+            <x-penjagaan-mini-card title="Bulan {{ $bulanLalu }}/{{ $tahunBulanLalu }} (Lalu)" :value="$tLalu"
+                icon="fa-calendar-xmark" type="secondary" />
+            <x-penjagaan-mini-card title="Selisih MoM" :value="$tIni - $tLalu" icon="fa-code-compare" :growth="$growth"
+                type="secondary" />
+        </div>
+
+        <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm border-t-4 border-t-blue-950">
             <div class="relative w-full h-[420px] block"><canvas id="chartVs"></canvas></div>
         </div>
 
     </div>
 @endsection
 @push('scripts')
+    <script src="{{ asset('js/penjagaan.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const el = document.getElementById('chartVs');
-            if (!el) return;
-            const existing = Chart.getChart(el);
-            if (existing) existing.destroy();
-            const ctx = el.getContext('2d');
-            const gradIni = ctx.createLinearGradient(0, 0, 0, 420);
-            gradIni.addColorStop(0, 'rgba(15,23,42,0.22)');
-            gradIni.addColorStop(1, 'rgba(15,23,42,0.01)');
-            const gradLalu = ctx.createLinearGradient(0, 0, 0, 420);
-            gradLalu.addColorStop(0, 'rgba(245,158,11,0.24)');
-            gradLalu.addColorStop(1, 'rgba(245,158,11,0.01)');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: {!! json_encode($days) !!},
-                    datasets: [{
-                        label: 'Bln {{ $bulan }}/{{ $tahunIni }}',
-                        data: {!! json_encode(array_values($dataBulanIni)) !!},
-                        borderColor: 'rgba(15,23,42,0.9)',
-                        backgroundColor: gradIni,
-                        borderWidth: 2.8,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 6
-                    }, {
-                        label: 'Bln {{ $bulanLalu }}/{{ $tahunBulanLalu }}',
-                        data: {!! json_encode(array_values($dataBulanLalu)) !!},
-                        borderColor: 'rgba(245,158,11,0.85)',
-                        backgroundColor: gradLalu,
-                        borderWidth: 2.2,
-                        borderDash: [8, 5],
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            align: 'end',
-                            labels: {
-                                usePointStyle: true,
-                                boxWidth: 8,
-                                boxHeight: 8,
-                                font: {
-                                    family: 'Inter',
-                                    size: 11,
-                                    weight: '700'
-                                },
-                                color: '#0f172a'
-                            }
-                        },
-                        tooltip: {
-                            padding: 12,
-                            cornerRadius: 8,
-                            backgroundColor: '#0f172a',
-                            callbacks: {
-                                label: function(c) {
-                                    return c.dataset.label + ': Rp ' + new Intl.NumberFormat('id-ID')
-                                        .format(c.raw || 0);
-                                },
-                                afterBody: function(items) {
-                                    if (items.length === 2) {
-                                        const diff = items[0].raw - items[1].raw;
-                                        const pct = items[1].raw != 0 ? (diff / items[1].raw * 100) : 0;
-                                        return 'Selisih: Rp ' + new Intl.NumberFormat('id-ID').format(
-                                            diff) + ' (' + pct.toFixed(1) + '%)';
-                                    }
-                                    return '';
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Tanggal',
-                                font: {
-                                    size: 11,
-                                    weight: '600'
-                                },
-                                color: '#64748b'
-                            },
-                            grid: {
-                                display: false
-                            },
-                            ticks: {
-                                font: {
-                                    family: 'Inter',
-                                    size: 11,
-                                    weight: '600'
-                                },
-                                color: '#64748b'
-                            }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(226,232,240,0.6)'
-                            },
-                            ticks: {
-                                font: {
-                                    family: 'JetBrains Mono',
-                                    size: 10,
-                                    weight: '500'
-                                },
-                                color: '#64748b',
-                                callback: function(v) {
-                                    return 'Rp ' + new Intl.NumberFormat('id-ID', {
-                                        notation: 'compact'
-                                    }).format(v);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+            renderChartVs('chartVs', {!! json_encode($days) !!}, {!! json_encode(array_values($dataBulanIni)) !!}, {!! json_encode(array_values($dataBulanLalu)) !!},
+                'Bln {{ $bulan }}/{{ $tahunIni }}',
+                'Bln {{ $bulanLalu }}/{{ $tahunBulanLalu }}');
         });
     </script>
 @endpush

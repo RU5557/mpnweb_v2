@@ -28,42 +28,41 @@ class PenjagaanController extends Controller
         [$fungsiOptions, $fungsi] = $this->penjagaanService->resolveFungsiFilter($request);
         $tahunIni = (int) date('Y');
         $tahunLalu = $tahunIni - 1;
-
         $raw = $this->repository->getSummaryBulanan($fungsi, $tahunIni, $tahunLalu);
         [$dataTahunIni, $dataTahunLalu] = $this->penjagaanService->normalizeBulanan($raw);
-
+        [$totalIni,$totalLalu,$growth] = $this->penjagaanService->calcSummary($dataTahunIni, $dataTahunLalu);
         $months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-        return view('penerimaan.penjagaan.bulanan', compact('months', 'dataTahunLalu', 'dataTahunIni', 'fungsiOptions', 'fungsi', 'tahunIni', 'tahunLalu'));
+        return view('penerimaan.penjagaan.bulanan', compact('months', 'dataTahunLalu', 'dataTahunIni', 'fungsiOptions', 'fungsi', 'tahunIni', 'tahunLalu', 'totalIni', 'totalLalu', 'growth'));
     }
 
     public function harian(Request $request)
     {
-        [$fungsiOptions, $fungsi] = $this->penjagaanService->resolveFungsiFilter($request);
+        [$fungsiOptions,$fungsi] = $this->penjagaanService->resolveFungsiFilter($request);
         $bulan = $this->penjagaanService->resolveBulan($request);
         $tahunIni = (int) date('Y');
         $tahunLalu = $tahunIni - 1;
-
         $raw = $this->repository->getSummaryHarian($bulan, $fungsi, $tahunIni, $tahunLalu);
-        [$dataTahunIni, $dataTahunLalu] = $this->penjagaanService->normalizeHarian($raw);
+        [$dataTahunIni,$dataTahunLalu] = $this->penjagaanService->normalizeHarian($raw);
+        [$totalIni,$totalLalu,$growth] = $this->penjagaanService->calcSummary($dataTahunIni, $dataTahunLalu);
         $days = range(1, 31);
 
-        return view('penerimaan.penjagaan.harian', compact('days', 'dataTahunLalu', 'dataTahunIni', 'bulan', 'fungsiOptions', 'fungsi', 'tahunIni', 'tahunLalu'));
+        return view('penerimaan.penjagaan.harian', compact('days', 'dataTahunLalu', 'dataTahunIni', 'bulan', 'fungsiOptions', 'fungsi', 'tahunIni', 'tahunLalu', 'totalIni', 'totalLalu', 'growth'));
     }
 
     public function vsBulanLalu(Request $request)
     {
-        [$fungsiOptions, $fungsi] = $this->penjagaanService->resolveFungsiFilter($request);
+        [$fungsiOptions,$fungsi] = $this->penjagaanService->resolveFungsiFilter($request);
         $bulan = $this->penjagaanService->resolveBulan($request);
         $tahunIni = (int) date('Y');
         $bulanLalu = $bulan == 1 ? 12 : $bulan - 1;
         $tahunBulanLalu = $bulan == 1 ? $tahunIni - 1 : $tahunIni;
-
         $raw = $this->repository->getSummaryVsBulanLalu($bulan, $bulanLalu, $tahunIni, $tahunBulanLalu, $fungsi);
-        [$dataBulanIni, $dataBulanLalu] = $this->penjagaanService->normalizeHarian($raw);
+        [$dataBulanIni,$dataBulanLalu] = $this->penjagaanService->normalizeHarian($raw);
+        [$totalIni,$totalLalu,$growth] = $this->penjagaanService->calcSummary($dataBulanIni, $dataBulanLalu);
         $days = range(1, 31);
 
-        return view('penerimaan.penjagaan.vs_bulan_lalu', compact('days', 'dataBulanIni', 'dataBulanLalu', 'bulan', 'bulanLalu', 'fungsiOptions', 'fungsi', 'tahunIni', 'tahunBulanLalu'));
+        return view('penerimaan.penjagaan.vs_bulan_lalu', compact('days', 'dataBulanIni', 'dataBulanLalu', 'bulan', 'bulanLalu', 'fungsiOptions', 'fungsi', 'tahunIni', 'tahunBulanLalu', 'totalIni', 'totalLalu', 'growth'));
     }
 
     public function exportBulananCsv(Request $request): StreamedResponse

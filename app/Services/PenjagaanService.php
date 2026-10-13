@@ -5,11 +5,6 @@ namespace App\Services;
 use App\Repositories\PenjagaanRepository;
 use Illuminate\Http\Request;
 
-/**
- * PenjagaanService - sesuai .airules thin controller
- * 1x hit cache fungsi (hemat I/O HDD 1TB)
- * Normalisasi data 12 bulan / 31 hari biar chart gak bolong
- */
 class PenjagaanService
 {
     public function __construct(protected PenjagaanRepository $repository) {}
@@ -53,5 +48,15 @@ class PenjagaanService
         }
 
         return [$ini, $lalu];
+    }
+
+    // Untuk chips & 3 mini-card
+    public function calcSummary(array $ini, array $lalu): array
+    {
+        $totalIni = array_sum($ini);
+        $totalLalu = array_sum($lalu);
+        $growth = $totalLalu != 0 ? (($totalIni - $totalLalu) / $totalLalu * 100) : 0;
+
+        return [$totalIni, $totalLalu, $growth];
     }
 }
