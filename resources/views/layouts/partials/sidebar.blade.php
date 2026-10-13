@@ -43,30 +43,29 @@
     ];
 @endphp
 
-{{-- SIDEBAR NAVY KHAS DJP - Uniform Tone --}}
+{{-- SIDEBAR DJP TOKENS - bg-djp-navy --}}
 <aside @mouseenter="handleMouseEnter()" @mouseleave="handleMouseLeave()" :class="isExpanded ? 'w-60' : 'w-16'"
-    class="bg-[#0A1931] text-slate-300 min-h-screen transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col justify-between fixed left-0 top-0 bottom-0 z-40 border-r border-[#1a365d] shadow-2xl">
+    class="bg-djp-navy text-slate-300 min-h-screen transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col justify-between fixed left-0 top-0 bottom-0 z-40 border-r border-djp-navyBorder shadow-2xl">
     <div>
-        {{-- Header Navy DJP uniform --}}
         <div
-            class="h-[60px] px-3.5 border-b border-[#1a365d] bg-[#0A1931] flex items-center justify-between shrink-0 overflow-hidden">
+            class="h-[60px] px-3.5 border-b border-djp-navyBorder bg-djp-navy flex items-center justify-between shrink-0 overflow-hidden">
             <div class="flex items-center gap-3 min-w-0">
                 <div
-                    class="bg-[#112A46] border border-amber-500/40 text-amber-400 p-2 rounded-lg font-bold flex items-center justify-center w-9 h-9 shadow-md shadow-black/20 shrink-0">
+                    class="bg-djp-navyHover border border-djp-gold/40 text-djp-gold p-2 rounded-lg font-bold flex items-center justify-center w-9 h-9 shadow-md shadow-black/20 shrink-0">
                     <i class="fa-solid fa-chart-column text-sm"></i>
                 </div>
                 <div x-show="isExpanded" x-cloak x-transition.opacity
                     class="flex flex-col leading-none space-y-1 whitespace-nowrap">
                     <span class="font-extrabold text-white text-[14px] tracking-wider uppercase">MPNWEB</span>
-                    <span class="text-[10px] text-amber-400 font-bold tracking-wider uppercase font-mono">DJP
+                    <span class="text-[10px] text-djp-gold font-bold tracking-wider uppercase font-mono">DJP
                         MONITORING</span>
                 </div>
             </div>
             <button @click="isPinned = !isPinned"
-                class="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-[#112A46] rounded-lg transition-colors shrink-0"
+                class="p-1.5 text-slate-400 hover:text-djp-gold hover:bg-djp-navyHover rounded-lg transition-colors shrink-0"
                 :class="!isExpanded && 'hidden'">
                 <i class="fa-solid fa-thumbtack text-xs transition-all duration-200"
-                    :class="isPinned ? 'text-amber-400 rotate-0' : 'text-slate-400 -rotate-45 opacity-60'"></i>
+                    :class="isPinned ? 'text-djp-gold rotate-0' : 'text-slate-400 -rotate-45 opacity-60'"></i>
             </button>
         </div>
 
@@ -81,13 +80,12 @@
         </nav>
     </div>
 
-    {{-- Footer Navy DJP uniform --}}
     <div
-        class="h-12 px-3.5 border-t border-[#1a365d] bg-[#0A1931] text-[11px] text-slate-400 flex justify-between items-center shrink-0">
+        class="h-12 px-3.5 border-t border-djp-navyBorder bg-djp-navy text-[11px] text-slate-400 flex justify-between items-center shrink-0">
         <span x-show="isExpanded" x-cloak x-transition.opacity class="font-bold whitespace-nowrap text-slate-300">DJP
             Executive</span>
         <span
-            class="bg-[#112A46] text-amber-400 border border-[#1a365d] px-2.5 py-1 rounded-md font-mono text-[10px] font-bold"
+            class="bg-djp-navyHover text-djp-gold border border-djp-navyBorder px-2.5 py-1 rounded-md font-mono text-[10px] font-bold"
             :class="!isExpanded && 'mx-auto'">v1.0</span>
     </div>
 </aside>
