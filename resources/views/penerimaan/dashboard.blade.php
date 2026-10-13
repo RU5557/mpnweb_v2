@@ -61,11 +61,12 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <x-dashboard.scorecard title="Penerimaan Saat Ini" :value="$summary['penerimaanSaatIni']" icon="fa-wallet" :growthMoM="$summary['growthMoM']"
                 :growthYoY="$summary['growthYoY']" />
-            <x-dashboard.scorecard title="Penerimaan Bln Lalu" :value="$summary['penerimaanBlnLalu']" icon="fa-calendar-check" type="secondary">
+            <x-dashboard.scorecard title="Penerimaan s.d. Bulan Lalu" :value="$summary['penerimaanBlnLalu']" icon="fa-calendar-check"
+                type="secondary">
                 <div class="flex items-center justify-between text-[11px] text-slate-400 w-full"><span>Pembanding
                         MoM</span><i class="fa-solid fa-arrow-right-arrow-left text-slate-300 text-[10px]"></i></div>
             </x-dashboard.scorecard>
-            <x-dashboard.scorecard title="Penerimaan Thn Lalu" :value="$summary['penerimaanThnLalu']" icon="fa-clock-rotate-left"
+            <x-dashboard.scorecard title="Penerimaan Tahun Lalu" :value="$summary['penerimaanThnLalu']" icon="fa-clock-rotate-left"
                 type="secondary">
                 <div class="flex items-center justify-between text-[11px] text-slate-400 w-full"><span>Pembanding
                         YoY</span><i class="fa-solid fa-arrow-right-arrow-left text-slate-300 text-[10px]"></i></div>
@@ -119,7 +120,7 @@
                     class="fa-solid fa-circle-info text-amber-500"></i>Pemahaman Dashboard (untuk pegawai)</h3>
             <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-[11.5px] text-slate-600 leading-relaxed">
                 <div class="bg-white border border-slate-200 rounded p-3 space-y-1">
-                    <div class="font-bold text-blue-950">PPM (Pajak Pengawasan Mandiri)</div>
+                    <div class="font-bold text-blue-950">PPM</div>
                     <div>Fungsi: <span class="font-mono bg-slate-100 px-1 rounded">PPM BRUTO, SPKMP</span> - Penerimaan dari
                         WP yang diawasi rutin. Target: <span
                             class="font-bold">{{ number_format($cards['ppm']['target'] ?? 0, 0, ',', '.') }}</span></div>

@@ -100,7 +100,7 @@ class DashboardService
                 'ppm' => [
                     'key' => 'ppm',
                     'title' => 'PPM',
-                    'subtitle' => 'Pajak Pengawasan Mandiri',
+                    'subtitle' => 'Pengawasan Pembayaran Masa',
                     'target' => $target?->target_ppm ?? 0,
                     'realisasi' => $summary->realisasiPPM ?? 0,
                     'realisasiLalu' => $summary->realisasiPPMLalu ?? 0,
@@ -109,8 +109,8 @@ class DashboardService
                 ],
                 'pkm' => [
                     'key' => 'pkm',
-                    'title' => 'PKM Total',
-                    'subtitle' => 'Pengawasan + Pemeriksaan + Penagihan',
+                    'title' => 'PKM',
+                    'subtitle' => 'Pengawasan + Pemeriksaan + Penagihan + Penegakan Hukum',
                     'target' => $target?->target_pkm ?? 0,
                     'realisasi' => $summary->realisasiPKM ?? 0,
                     'realisasiLalu' => $summary->realisasiPKMLalu ?? 0,
@@ -120,7 +120,7 @@ class DashboardService
                 'pbp' => [
                     'key' => 'pbp',
                     'title' => 'PBP',
-                    'subtitle' => 'Pajak Bumi & Bangunan',
+                    'subtitle' => 'Perluasan Basis Pajak',
                     'target' => $target?->target_pbp ?? 0,
                     'realisasi' => $summary->realisasiPBP ?? 0,
                     'persen' => $this->calcPersen($target?->target_pbp, $summary->realisasiPBP ?? 0),
@@ -130,7 +130,7 @@ class DashboardService
                 'pengawasan' => [
                     'key' => 'pengawasan',
                     'title' => 'PKM Pengawasan',
-                    'subtitle' => 'AKT & WRA Pengawasan',
+                    'subtitle' => 'AKT & WRA Pengawasan + Lainnya',
                     'target' => $target?->target_pkm_pengawasan ?? 0,
                     'realisasi' => $summary->realisasiPengawasan ?? 0,
                     'realisasiLalu' => $summary->realisasiPengawasanLalu ?? 0,
