@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="id" class="h-full bg-slate-100" x-data="{
-    sidebarOpen: false,
-    isPinned: false,
+    sidebarOpen: true,
+    isPinned: true,
     handleMouseEnter() {
         if (!this.isPinned) {
             this.sidebarOpen = true;
