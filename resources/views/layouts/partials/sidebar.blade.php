@@ -3,18 +3,18 @@
     class="bg-slate-950 text-slate-300 min-h-screen transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col justify-between fixed left-0 top-0 bottom-0 z-40 border-r border-blue-900/40 shadow-2xl">
 
     <div>
-        <!-- Sidebar Header (Ikon Logo Diam Presisi di Kiri) -->
+        <!-- Sidebar Header -->
         <div
             class="h-14 px-3.5 border-b border-blue-900/50 bg-blue-950/40 flex items-center justify-between shrink-0 overflow-hidden">
 
             <div class="flex items-center gap-3 min-w-0">
-                <!-- Ikon Logo (Selalu Tampil & Diam di Tempat) -->
+                <!-- Ikon Logo -->
                 <div
                     class="bg-gradient-to-tr from-blue-950 to-slate-900 border border-amber-500/40 text-amber-400 p-2 rounded-lg font-bold flex items-center justify-center w-8 h-8 shadow-md shadow-amber-500/10 shrink-0">
                     <i class="fa-solid fa-chart-column text-xs"></i>
                 </div>
 
-                <!-- Teks Judul (Hanya Teks yang Fade Out saat Mencengkeram) -->
+                <!-- Teks Judul -->
                 <div x-show="sidebarOpen || isPinned" x-cloak x-transition:enter="transition ease-out duration-200"
                     x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                     x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100"
@@ -28,13 +28,13 @@
                 </div>
             </div>
 
-            <!-- Tombol Pin (Bergeser Halus saat Tertutup) -->
+            <!-- Tombol Pin Sidebar (Ikon Pin disesuaikan) -->
             <button @click="isPinned = !isPinned; sidebarOpen = isPinned"
                 class="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-blue-950/60 rounded-lg transition-colors flex items-center justify-center shrink-0"
                 :class="!(sidebarOpen || isPinned) && 'hidden'"
-                :title="isPinned ? 'Lepas Kunci Sidebar' : 'Kunci Sidebar'">
-                <i class="fa-solid text-xs transition-transform duration-200"
-                    :class="isPinned ? 'fa-thumbtack text-amber-400 rotate-45' : (sidebarOpen ? 'fa-indent' : 'fa-outdent')"></i>
+                :title="isPinned ? 'Lepas Kunci Sidebar (Auto Collapse)' : 'Kunci Sidebar'">
+                <i class="fa-solid fa-thumbtack text-xs transition-all duration-200"
+                    :class="isPinned ? 'text-amber-400 rotate-0' : 'text-slate-400 -rotate-45 opacity-60'"></i>
             </button>
         </div>
 
