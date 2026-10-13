@@ -17,7 +17,7 @@
             <div>
                 <h1 class="text-base font-extrabold text-blue-950 leading-tight tracking-tight uppercase">Penerimaan PKM
                     Pengawasan</h1>
-                <p class="text-[11px] text-slate-500 font-medium">Rincian realisasi PKM Pengawasan s.d. bulan terpilih per
+                <p class="text-[11px] text-slate-500 font-medium">Rincian realisasi PKM Pengawasan per
                     Account Representative (AR)</p>
             </div>
         </div>
