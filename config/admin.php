@@ -15,4 +15,7 @@ return [
     */
     'username' => env('ADMIN_USERNAME'),
     'password' => env('ADMIN_PASSWORD'),
+    // Nomor WA Admin untuk error handling - format internasional tanpa +/0
+    // Contoh: 628123456789
+    'wa_number' => env('ADMIN_WA_NUMBER', '628123456789'),
 ];
