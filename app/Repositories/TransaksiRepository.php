@@ -7,123 +7,70 @@ use App\Models\Klu;
 use App\Models\Mfwp;
 use App\Models\Pegawai;
 use App\Models\Seksi;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class TransaksiRepository
 {
-    /**
-     * Ambil Opsi Dropdown Filter dengan Caching 24 Jam
-     */
     public function getFilterDropdownOptions(int $tahun): array
     {
-        return Cache::remember("transaksi_filter_options_{$tahun}", 86400, function () use ($tahun) {
-            return [
-                'listKota' => Mfwp::query()
-                    ->whereNotNull('kota')
-                    ->where('kota', '!=', '')
-                    ->distinct()
-                    ->orderBy('kota')
-                    ->pluck('kota'),
+        $ttl = 21600;
 
-                'listJenisWp' => Mfwp::query()
-                    ->whereNotNull('jenis')
-                    ->where('jenis', '!=', '')
-                    ->distinct()
-                    ->orderBy('jenis')
-                    ->pluck('jenis'),
-
-                'listSektor' => Klu::query()
-                    ->whereNotNull('nm_kategori')
-                    ->where('nm_kategori', '!=', '')
-                    ->select('nm_kategori')
-                    ->distinct()
-                    ->orderBy('nm_kategori')
-                    ->pluck('nm_kategori'),
-
-                'listSeksi' => Seksi::query()
-                    ->orderBy('nama')
-                    ->get(['id', 'nama', 'kode']),
-
-                'listAr' => Pegawai::query()
-                    ->where('jabatan', '5')
-                    ->where('tahun', $tahun)
-                    ->orderBy('nama')
-                    ->get(['nip', 'nama', 'seksi']),
-
-                'listJs' => Pegawai::query()
-                    ->where('jabatan', '11')
-                    ->where('tahun', $tahun)
-                    ->orderBy('nama')
-                    ->get(['nip', 'nama', 'seksi']),
-
-                'listTahunSetor' => Drm::query()
-                    ->whereNotNull('thn_setor')
-                    ->distinct()
-                    ->orderBy('thn_setor', 'desc')
-                    ->pluck('thn_setor'),
-
-                'listFungsi' => Drm::query()
-                    ->whereNotNull('fungsi')
-                    ->where('fungsi', '!=', '')
-                    ->distinct()
-                    ->orderBy('fungsi')
-                    ->pluck('fungsi'),
-            ];
-        });
+        return [
+            'listFungsi' => Cache::remember('trx_fungsi_v8', $ttl, fn () => Drm::whereNotNull('fungsi')->where('fungsi', '!=', '')->distinct()->orderBy('fungsi')->pluck('fungsi')),
+            'listKecamatan' => Cache::remember('trx_kec_v8', $ttl, fn () => Mfwp::whereNotNull('kecamatan')->where('kecamatan', '!=', '')->distinct()->orderBy('kecamatan')->limit(500)->pluck('kecamatan')),
+            'listJenisWp' => Cache::remember('trx_jenis_v8', $ttl, fn () => Mfwp::whereNotNull('jenis')->where('jenis', '!=', '')->distinct()->orderBy('jenis')->pluck('jenis')),
+            'listSektor' => Cache::remember('trx_sektor_v8', $ttl, fn () => Klu::whereNotNull('nm_kategori')->where('nm_kategori', '!=', '')->distinct()->orderBy('nm_kategori')->pluck('nm_kategori')),
+            'listAr' => Cache::remember("trx_ar_{$tahun}_v8", $ttl, fn () => Pegawai::where('jabatan', '5')->where('tahun', $tahun)->orderBy('nama')->get(['nip', 'nama', 'seksi'])),
+            'listSeksi' => Cache::remember('trx_seksi_v8', $ttl, fn () => Seksi::where('nama', 'LIKE', '%pengawasan%')->orderBy('id')->get(['id', 'nama', 'kode'])),
+            'listMap' => Cache::remember('trx_map_v8', $ttl, fn () => Drm::whereNotNull('kd_map')->where('kd_map', '!=', '')->distinct()->orderBy('kd_map')->limit(300)->pluck('kd_map')),
+            'listBayar' => Cache::remember('trx_bayar_v8', $ttl, fn () => Drm::whereNotNull('kd_bayar')->where('kd_bayar', '!=', '')->distinct()->orderBy('kd_bayar')->limit(300)->pluck('kd_bayar')),
+        ];
     }
 
-    /**
-     * Reusable Query Builder untuk Transaksi DRM (Pencarian & Export)
-     */
     public function buildTransaksiQuery(array $filters, int $tahun = 2026): Builder
     {
-        $query = DB::table('drm as t')
-            ->leftJoin('mfwp as m', 't.npwp15', '=', 'm.npwp15');
+        $query = DB::table('drm as t')->leftJoin('mfwp as m', 't.npwp15', '=', 'm.npwp15');
 
-        // === FILTERING SISI TRANSAKSI (DRM) ===
-
-        // 1. Filter NPWP (9 / 15 Digit)
         if (! empty($filters['npwp'])) {
-            $cleanNpwp = preg_replace('/[^0-9]/', '', $filters['npwp']);
-            if (strlen($cleanNpwp) >= 15) {
-                $npwp15 = substr($cleanNpwp, 0, 15);
-                $query->where('t.npwp15', $npwp15);
-            } else {
-                $query->where('t.npwp', 'LIKE', $cleanNpwp.'%');
+            $clean = preg_replace('/[^0-9]/', '', (string) $filters['npwp']);
+            if ($clean !== '') {
+                $query->where(fn ($q) => $q->where('t.npwp15', 'LIKE', "{$clean}%")->orWhere('t.npwp', 'LIKE', "{$clean}%"));
             }
         }
-
-        // 2. Filter Nama WP
         if (! empty($filters['nama'])) {
-            $nama = trim($filters['nama']);
-            if (strlen($nama) >= 3) {
-                $query->whereRaw('MATCH(t.nama_wp) AGAINST(? IN BOOLEAN MODE)', [$nama.'*']);
-            } else {
-                $query->where('t.nama_wp', 'LIKE', '%'.$nama.'%');
+            $nama = trim((string) $filters['nama']);
+            if ($nama !== '') {
+                $words = array_filter(explode(' ', $nama));
+                $hasShort = false;
+                foreach ($words as $w) {
+                    if (mb_strlen($w) < 4) {
+                        $hasShort = true;
+                        break;
+                    }
+                }
+                if ($hasShort || count($words) == 0) {
+                    $query->where('t.nama_wp', 'LIKE', "%{$nama}%");
+                } else {
+                    $query->whereRaw('MATCH(t.nama_wp) AGAINST(? IN BOOLEAN MODE)', ['+'.implode(' +', $words).'*']);
+                }
             }
         }
-
-        // 3. Kode MAP & Kode Bayar
+        if (! empty($filters['fungsi'])) {
+            $f = $filters['fungsi'];
+            if (is_array($f)) {
+                $query->whereIn('t.fungsi', $f);
+            } else {
+                $query->where('t.fungsi', trim((string) $f));
+            }
+        }
         if (! empty($filters['kd_map'])) {
-            $query->where('t.kd_map', trim($filters['kd_map']));
+            $query->where('t.kd_map', trim((string) $filters['kd_map']));
         }
         if (! empty($filters['kd_bayar'])) {
-            $query->where('t.kd_bayar', trim($filters['kd_bayar']));
+            $query->where('t.kd_bayar', trim((string) $filters['kd_bayar']));
         }
-
-        // 4. Tanggal Setor (Start & End)
-        if (! empty($filters['tgl_setor_start']) && ! empty($filters['tgl_setor_end'])) {
-            $query->whereBetween('t.tgl_setor', [$filters['tgl_setor_start'], $filters['tgl_setor_end']]);
-        } elseif (! empty($filters['tgl_setor_start'])) {
-            $query->where('t.tgl_setor', '>=', $filters['tgl_setor_start']);
-        } elseif (! empty($filters['tgl_setor_end'])) {
-            $query->where('t.tgl_setor', '<=', $filters['tgl_setor_end']);
-        }
-
-        // 5. Masa Pajak 1, Masa Pajak 2, & Tahun Pajak
         if (! empty($filters['masa1'])) {
             $query->where('t.masa1', (int) $filters['masa1']);
         }
@@ -133,141 +80,122 @@ class TransaksiRepository
         if (! empty($filters['thn_pajak'])) {
             $query->where('t.thn_pajak', (int) $filters['thn_pajak']);
         }
-
-        // 6. Filter Tahun Setor & Bulan Setor
-        if (! empty($filters['thn_setor']) && is_array($filters['thn_setor'])) {
-            $query->whereIn('t.thn_setor', $filters['thn_setor']);
+        $tglAwal = $filters['tgl_setor_awal'] ?? $filters['tgl_setor_start'] ?? null;
+        $tglAkhir = $filters['tgl_setor_akhir'] ?? $filters['tgl_setor_end'] ?? null;
+        if (! empty($tglAwal) && ! empty($tglAkhir)) {
+            $query->whereBetween('t.tgl_setor', [$tglAwal, $tglAkhir]);
+        } elseif (! empty($tglAwal)) {
+            $query->where('t.tgl_setor', '>=', $tglAwal);
+        } elseif (! empty($tglAkhir)) {
+            $query->where('t.tgl_setor', '<=', $tglAkhir);
         }
-        if (! empty($filters['bln_setor']) && is_array($filters['bln_setor'])) {
-            $query->whereIn('t.bln_setor', $filters['bln_setor']);
-        }
-
-        // 7. NTPN
         if (! empty($filters['ntpn'])) {
-            $query->where('t.ntpn', trim($filters['ntpn']));
+            $query->where('t.ntpn', 'LIKE', '%'.trim((string) $filters['ntpn']).'%');
         }
-
-        // 8. Fungsi
-        if (! empty($filters['fungsi']) && is_array($filters['fungsi'])) {
-            $query->whereIn('t.fungsi', $filters['fungsi']);
+        if (! empty($filters['no_produk_hukum'])) {
+            $query->where('t.no_produk_hukum', 'LIKE', '%'.trim((string) $filters['no_produk_hukum']).'%');
         }
-
-        // === FILTERING SISI MASTERFILE (MFWP) & PEGAWAI ===
-
-        // 9. Kota
-        if (! empty($filters['kota'])) {
-            $query->where('m.kota', $filters['kota']);
+        if (! empty($filters['kecamatan'])) {
+            $query->where('m.kecamatan', $filters['kecamatan']);
         }
-
-        // 10. Jenis WP
         if (! empty($filters['jenis_wp'])) {
             $query->where('m.jenis', $filters['jenis_wp']);
         }
-
-        // 11. Sektor Usaha (KLU)
         if (! empty($filters['sektor'])) {
-            $query->join('klu as k', 'm.klu', '=', 'k.kd_klu')
-                ->where('k.nm_kategori', $filters['sektor']);
+            $query->whereExists(fn ($q) => $q->select(DB::raw(1))->from('klu')->whereColumn('klu.kd_klu', 'm.klu')->where('klu.nm_kategori', $filters['sektor']));
         }
 
-        // 12. Seksi
-        if (! empty($filters['seksi_id'])) {
-            $seksi = Seksi::find($filters['seksi_id']);
-            if ($seksi) {
-                $query->join('pegawai as p_ar_filter', function ($join) use ($tahun) {
-                    $join->on('m.nip_ar', '=', 'p_ar_filter.nip')
-                        ->where('p_ar_filter.tahun', '=', $tahun)
-                        ->where('p_ar_filter.jabatan', '=', '5');
-                })->where('p_ar_filter.seksi', $seksi->nama);
+        $nipAr = $filters['nip_ar'] ?? null;
+        $seksiId = $filters['seksi_id'] ?? null;
+        if (! empty($nipAr) && empty($seksiId)) {
+            if (is_array($nipAr)) {
+                $query->whereIn('m.nip_ar', $nipAr);
+            } else {
+                $query->where('m.nip_ar', $nipAr);
             }
-        }
-
-        // 13. AR (Multi-select NIP)
-        if (! empty($filters['nip_ar']) && is_array($filters['nip_ar'])) {
-            $query->whereIn('m.nip_ar', $filters['nip_ar']);
-        }
-
-        // 14. JS (Multi-select NIP)
-        if (! empty($filters['nip_js']) && is_array($filters['nip_js'])) {
-            $query->whereIn('m.nip_js', $filters['nip_js']);
+        } elseif (empty($nipAr) && ! empty($seksiId)) {
+            $seksi = Seksi::find($seksiId);
+            if ($seksi) {
+                $seksiNama = $seksi->nama;
+                $seksiIdStr = (string) $seksi->id;
+                $lastWord = trim(substr($seksiNama, strrpos($seksiNama, ' ') ?: 0));
+                $nips = Pegawai::where('tahun', $tahun)->where('jabatan', '5')
+                    ->where(fn ($q) => $q->where('seksi', $seksiIdStr)->orWhere('seksi', $seksiNama)->orWhere('seksi', 'LIKE', '%'.$seksiNama.'%')->orWhere(fn ($qq) => $qq->where('seksi', 'LIKE', '%'.$lastWord)->where('seksi', 'LIKE', '%Pengawasan%')))
+                    ->pluck('nip')->toArray();
+                if (! empty($nips)) {
+                    $query->whereIn('m.nip_ar', $nips);
+                } else {
+                    $query->whereRaw('1=0');
+                }
+            }
+        } elseif (! empty($nipAr) && ! empty($seksiId)) {
+            $seksi = Seksi::find($seksiId);
+            if ($seksi) {
+                $seksiNama = $seksi->nama;
+                $seksiIdStr = (string) $seksi->id;
+                $lastWord = trim(substr($seksiNama, strrpos($seksiNama, ' ') ?: 0));
+                $nipList = is_array($nipAr) ? $nipAr : [$nipAr];
+                $validNips = Pegawai::where('tahun', $tahun)->where('jabatan', '5')->whereIn('nip', $nipList)
+                    ->where(fn ($q) => $q->where('seksi', $seksiIdStr)->orWhere('seksi', $seksiNama)->orWhere('seksi', 'LIKE', '%'.$seksiNama.'%')->orWhere(fn ($qq) => $qq->where('seksi', 'LIKE', '%'.$lastWord)->where('seksi', 'LIKE', '%Pengawasan%')))
+                    ->pluck('nip')->toArray();
+                if (! empty($validNips)) {
+                    $query->whereIn('m.nip_ar', $validNips);
+                } else {
+                    $query->whereRaw('1=0');
+                }
+            } else {
+                if (is_array($nipAr)) {
+                    $query->whereIn('m.nip_ar', $nipAr);
+                } else {
+                    $query->where('m.nip_ar', $nipAr);
+                }
+            }
         }
 
         return $query;
     }
 
     /**
-     * Pencarian Detil Transaksi / DRM Paginated
+     * UBAH: totalExact (COUNT) diganti jadi totalJumlah (SUM jml_setor)
      */
-    public function searchTransaksiPaginated(array $filters, int $perPage = 20, int $tahun = 2026): LengthAwarePaginator
+    public function searchTransaksiCursorPaginated(array $filters, int $perPage = 20, int $tahun = 2026): array
     {
-        $query = $this->buildTransaksiQuery($filters, $tahun);
+        $baseQuery = $this->buildTransaksiQuery($filters, $tahun);
 
-        $query->leftJoin('pegawai as ar', function ($join) use ($tahun) {
-            $join->on('m.nip_ar', '=', 'ar.nip')
-                ->where('ar.tahun', '=', $tahun)
-                ->where('ar.jabatan', '=', '5');
-        })
-            ->leftJoin('pegawai as js', function ($join) use ($tahun) {
-                $join->on('m.nip_js', '=', 'js.nip')
-                    ->where('js.tahun', '=', $tahun)
-                    ->where('js.jabatan', '=', '11');
-            });
+        // SUM jml_setor, bukan COUNT
+        $totalJumlah = (clone $baseQuery)->sum('t.jml_setor');
+        $totalCount = (clone $baseQuery)->count(); // tetap hitung count untuk info menampilkan X data, tapi tidak dipakai sebagai totalExact
 
-        $query->select([
-            't.id', 't.tgl_setor', 't.npwp15', 't.npwp', 't.nama_wp',
-            'm.nama as nama_master', 't.fungsi', 't.kd_map', 't.kd_bayar',
-            't.jenis as jenis_pajak', 't.masa1', 't.masa2', 't.thn_pajak', 't.jml_setor',
-            't.ntpn', 'ar.nama as nama_ar', 'js.nama as nama_js', 'm.kota', 'm.jenis as jenis_wp',
-        ]);
+        $query = $baseQuery
+            ->leftJoin('pegawai as ar', fn ($j) => $j->on('m.nip_ar', '=', 'ar.nip')->where('ar.tahun', '=', $tahun)->where('ar.jabatan', '=', '5'))
+            ->leftJoin('pegawai as js', fn ($j) => $j->on('m.nip_js', '=', 'js.nip')->where('js.tahun', '=', $tahun)->where('js.jabatan', '=', '11'))
+            ->leftJoin('klu as k2', 'm.klu', '=', 'k2.kd_klu')
+            ->select(['t.id', 't.tgl_setor', 't.npwp', 't.npwp15', 't.nama_wp', 't.fungsi', 't.kd_map', 't.kd_bayar', 't.masa1', 't.masa2', 't.thn_pajak', 't.jml_setor', 't.ntpn', 't.no_produk_hukum', 'm.nama as nama_master', 'm.kecamatan', 'm.jenis as jenis_wp', 'm.klu', 'k2.nm_kategori as sektor', 'ar.nama as nama_ar', 'ar.seksi as seksi_ar', 'js.nama as nama_js']);
 
-        $sortBy = $filters['sort_by'] ?? 't.tgl_setor';
+        $sortBy = $filters['sort_by'] ?? 'tgl_setor';
         $sortOrder = strtolower($filters['sort_order'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+        $allowed = ['tgl_setor' => 't.tgl_setor', 'npwp15' => 't.npwp15', 'jml_setor' => 't.jml_setor', 'kd_map' => 't.kd_map', 'fungsi' => 't.fungsi'];
+        $sortCol = $allowed[$sortBy] ?? 't.tgl_setor';
+        $paginator = $query->orderBy($sortCol, $sortOrder)->orderBy('t.id', 'asc')->cursorPaginate($perPage);
 
-        $allowedSorts = [
-            'tgl_setor' => 't.tgl_setor',
-            'npwp15' => 't.npwp15',
-            'fungsi' => 't.fungsi',
-            'kd_map' => 't.kd_map',
-            'jml_setor' => 't.jml_setor',
-        ];
-
-        $sortColumn = $allowedSorts[$sortBy] ?? 't.tgl_setor';
-        $query->orderBy($sortColumn, $sortOrder);
-
-        return $query->paginate($perPage);
+        return ['results' => $paginator, 'totalJumlah' => $totalJumlah, 'totalCount' => $totalCount];
     }
 
-    /**
-     * Query Builder Khusus untuk Streaming Export CSV
-     */
+    // SUM cache, bukan COUNT
+    public function getTotalJumlahCached(array $filters, int $tahun = 2026): int
+    {
+        $key = 'trx_sum_jml_'.md5(json_encode($filters).$tahun);
+
+        return Cache::remember($key, 600, fn () => $this->buildTransaksiQuery($filters, $tahun)->sum('t.jml_setor'));
+    }
+
     public function buildTransaksiExportQuery(array $filters, int $tahun = 2026): Builder
     {
         return $this->buildTransaksiQuery($filters, $tahun)
-            ->leftJoin('pegawai as ar', function ($join) use ($tahun) {
-                $join->on('m.nip_ar', '=', 'ar.nip')
-                    ->where('ar.tahun', '=', $tahun)
-                    ->where('ar.jabatan', '=', '5');
-            })
-            ->leftJoin('pegawai as js', function ($join) use ($tahun) {
-                $join->on('m.nip_js', '=', 'js.nip')
-                    ->where('js.tahun', '=', $tahun)
-                    ->where('js.jabatan', '=', '11');
-            })
-            ->select([
-                't.tgl_setor',
-                't.npwp15',
-                DB::raw('COALESCE(t.nama_wp, m.nama) as nama_wp'),
-                't.fungsi',
-                't.kd_map',
-                't.kd_bayar',
-                DB::raw("CONCAT(LPAD(t.masa1, 2, '0'), '-', LPAD(t.masa2, 2, '0')) as masa_pajak"),
-                't.thn_pajak',
-                't.jml_setor',
-                't.ntpn',
-                'ar.nama as nama_ar',
-                'js.nama as nama_js',
-                'm.kota',
-            ])
-            ->orderBy('t.tgl_setor', 'desc');
+            ->leftJoin('pegawai as ar', fn ($j) => $j->on('m.nip_ar', '=', 'ar.nip')->where('ar.tahun', '=', $tahun)->where('ar.jabatan', '=', '5'))
+            ->leftJoin('pegawai as js', fn ($j) => $j->on('m.nip_js', '=', 'js.nip')->where('js.tahun','=',$tahun)->where('js.jabatan','=','11'))
+            ->leftJoin('klu as k2','m.klu','=','k2.kd_klu')
+            ->select(['t.tgl_setor', 't.npwp', 't.npwp15', DB::raw('COALESCE(t.nama_wp, m.nama) as nama_wp'), 't.fungsi', 't.kd_map', 't.kd_bayar', 't.masa1', 't.masa2', 't.thn_pajak', 't.jml_setor', 't.ntpn', 't.no_produk_hukum', 'm.kecamatan', 'm.jenis as jenis_wp', 'k2.nm_kategori as sektor', 'ar.nama as nama_ar', 'ar.seksi as seksi'])
+            ->orderBy('t.tgl_setor','desc');
     }
 }
