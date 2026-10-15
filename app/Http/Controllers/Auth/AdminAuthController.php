@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AdminAuthController extends Controller
 {
@@ -19,23 +22,50 @@ class AdminAuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'username' => 'required',
-            'password' => 'required',
+            'username' => 'required|string',
+            'password' => 'required|string',
         ]);
 
-        // Mengambil nilai username & password langsung dari file .env
-        // Parameter kedua ('admin') adalah nilai fallback jika .env tidak terbaca
-        $adminUser = env('ADMIN_USERNAME', 'admin');
-        $adminPass = env('ADMIN_PASSWORD', 'admin');
+        // Rate limiting: 5 percobaan per menit per IP + username
+        $throttleKey = 'admin-login:'.strtolower($request->username).'|'.$request->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            return back()->withErrors([
+                'username' => "Terlalu banyak percobaan login. Coba lagi dalam {$seconds} detik.",
+            ])->withInput();
+        }
+
+        // Ambil dari config/admin.php (aman, tidak ada fallback 'admin' di GitHub)
+        $adminUser = config('admin.username');
+        $adminPass = config('admin.password');
+
+        // Jika config belum di-set di .env, jangan kasih fallback, langsung error 500 yang jelas
+        if (empty($adminUser) || empty($adminPass)) {
+            Log::critical('ADMIN_USERNAME atau ADMIN_PASSWORD belum di-set di .env');
+            abort(500, 'Konfigurasi admin belum diatur. Hubungi administrator sistem.');
+        }
 
         if ($request->username === $adminUser && $request->password === $adminPass) {
-            // Simpan session status login admin
+            // Sukses - reset rate limiter & buat session
+            RateLimiter::clear($throttleKey);
             session(['is_admin' => true]);
+            Cache::forget('mpnweb_rolling_text');
 
             return redirect()->route('admin.index')->with('success', 'Berhasil login sebagai Admin!');
         }
 
-        return back()->withErrors(['username' => 'Username atau password admin salah!'])->withInput();
+        // Gagal - hit rate limiter & log
+        RateLimiter::hit($throttleKey, 60); // lock 60 detik setelah 5 gagal
+        Log::warning('Failed admin login attempt', [
+            'username' => $request->username,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return back()->withErrors([
+            'username' => 'Username atau password admin salah!',
+        ])->withInput();
     }
 
     public function logout(Request $request)

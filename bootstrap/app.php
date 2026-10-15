@@ -1,10 +1,14 @@
 <?php
 
 use App\Http\Middleware\AdminAuthMiddleware;
+use App\Services\ErrorLogService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,49 +16,71 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware) {
-        $middleware->alias([
-            'admin.auth' => AdminAuthMiddleware::class,
-        ]);
-    })
+    ->withMiddleware(fn (Middleware $middleware) => $middleware->alias([
+        'admin.auth' => AdminAuthMiddleware::class,
+    ]))
     ->withExceptions(function (Exceptions $exceptions): void {
 
-        // Custom Penanganan Error Global - Direct Download Log & Custom View
-        $exceptions->render(function (Throwable $e, Request $request) {
-
-            // Tangkap semua error pada request halaman web/HTML
-            if ($request->isMethod('GET') || $request->acceptsHtml()) {
-
-                // 1. Ambil Detail Error
-                $timestamp = now()->format('Y-m-d H:i:s');
-                $errorMsg = $e->getMessage();
-                $file = $e->getFile();
-                $line = $e->getLine();
-                $url = $request->fullUrl();
-                $trace = $e->getTraceAsString();
-
-                // 2. Format Teks Log
-                $logContent = "=========================================\n";
-                $logContent .= "   MPNWEB SYSTEM ERROR LOG\n";
-                $logContent .= "=========================================\n";
-                $logContent .= "Timestamp : {$timestamp}\n";
-                $logContent .= "URL       : {$url}\n";
-                $logContent .= "File      : {$file} (Line {$line})\n";
-                $logContent .= "Message   : {$errorMsg}\n";
-                $logContent .= "-----------------------------------------\n";
-                $logContent .= "STACK TRACE:\n";
-                $logContent .= $trace."\n";
-
-                // Encode log ke Base64 agar bisa diunduh secara langsung via browser tanpa simpan di server
-                $logBase64 = base64_encode($logContent);
-
-                // 3. Tampilkan Halaman Error Kustom dengan data log
-                return response()->view('errors.500', [
-                    'timestamp' => $timestamp,
-                    'logBase64' => $logBase64,
-                    'logFileName' => 'Error_Log_MPNWEB_'.now()->format('Ymd_His').'.txt',
-                ], 500);
-            }
+        // 1. REPORT - tetap nulis ke storage/logs/laravel.log
+        $exceptions->report(function (Throwable $e) {
+            Log::error($e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'code' => $e->getCode(),
+            ]);
         });
 
+        // 2. RENDER - HANYA 2 PARAMETER (Laravel 12 rule)
+        $exceptions->render(function (Throwable $e, Request $request) {
+
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return null;
+            }
+
+            if (config('app.debug') && app()->environment('local')) {
+                $statusForDebug = $e instanceof HttpException ? $e->getStatusCode() : 500;
+                if ($statusForDebug === 500) {
+                    return null; // biar whoops muncul pas ngoding 500
+                }
+            }
+
+            $statusCode = 500;
+            if ($e instanceof HttpException) {
+                $statusCode = $e->getStatusCode();
+            } elseif ($e instanceof NotFoundHttpException) {
+                $statusCode = 404;
+            }
+
+            $modularErrors = [401, 403, 404, 419, 429, 503];
+
+            if (in_array($statusCode, $modularErrors)) {
+
+                // Resolve service DI DALAM closure (ini cara yang bener)
+                $service = app(ErrorLogService::class);
+
+                if ($statusCode === 503) {
+                    $logData = $service->generateMaintenanceLog($request, $e->getMessage() ?: 'Maintenance');
+
+                    return response()->view("errors.{$statusCode}", array_merge([
+                        'exception' => $e,
+                        'status' => $statusCode,
+                    ], $logData), $statusCode);
+                }
+
+                return response()->view("errors.{$statusCode}", [
+                    'exception' => $e,
+                    'status' => $statusCode,
+                ], $statusCode);
+            }
+
+            // 500
+            if ($request->isMethod('GET') || $request->acceptsHtml() || $statusCode === 500) {
+                $service = app(ErrorLogService::class); // resolve di dalam
+                $logData = $service->generateForView($e, $request);
+
+                return response()->view('errors.500', $logData, 500);
+            }
+
+            return null;
+        });
     })->create();
