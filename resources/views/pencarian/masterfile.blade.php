@@ -1,24 +1,15 @@
-{{-- resources/views/pencarian/masterfile.blade.php - VERSI PIMPINAN CLEAN tanpa label teknis --}}
+{{-- resources/views/pencarian/masterfile.blade.php - VERSI PIMPINAN CLEAN + SUDAH PAKAI COMPONENT page-header --}}
 @extends('layouts.app')
 @section('title', 'Pencarian Masterfile WP - MPNWEB')
 
 @section('content')
     <div class="space-y-4" x-data="{ loading: false, showAlamat: false, alamatDetail: '' }">
-        {{-- HEADER CLEAN UNTUK PIMPINAN --}}
-        <div
-            class="bg-white border border-slate-200/90 rounded-lg p-3.5 flex items-center gap-3.5 shadow-2xs border-t-4 border-t-amber-500">
-            <div class="w-10 h-10 rounded-lg bg-blue-950 text-amber-400 flex items-center justify-center shadow-sm">
-                <i class="fa-solid fa-users-gear text-sm"></i>
-            </div>
-            <div>
-                <h1 class="text-[15px] font-extrabold text-blue-950 uppercase tracking-wide">Pencarian Masterfile Wajib Pajak
-                </h1>
-                <p class="text-[11px] text-slate-500 mt-0.5">Data Masterfile WP • Tahun {{ date('Y') }}</p>
-            </div>
-        </div>
+        {{-- HEADER SUDAH PAKAI COMPONENT - ukuran besar proporsional sama seperti masterfile WP yang bagus menurut pimpinan --}}
+        <x-layout.page-header title="Pencarian Masterfile Wajib Pajak"
+            subtitle="Data Masterfile WP • Tahun {{ date('Y') }}" icon="fa-users-gear" />
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            {{-- FILTER CLEAN --}}
+            {{-- FILTER CLEAN - tanpa label teknis --}}
             <div
                 class="lg:col-span-3 bg-white p-3.5 rounded-lg shadow-2xs border border-slate-200/90 space-y-3 sticky top-20">
                 <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
@@ -105,7 +96,6 @@
                                 class="w-full bg-white border border-slate-300 text-xs rounded-md px-1.5 py-1.5"></div>
                     </div>
 
-                    {{-- AR & JSPN CLEAN TANPA LABEL TEKNIS --}}
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Account
                             Representative</label><select name="nip_ar"
                             class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
@@ -134,7 +124,7 @@
                 </form>
             </div>
 
-            {{-- HASIL CLEAN UNTUK PIMPINAN --}}
+            {{-- HASIL CLEAN --}}
             <div class="lg:col-span-9">
                 @if ($hasSearch && isset($results))
                     <div class="bg-white rounded-lg shadow-2xs border border-slate-200/90 overflow-hidden">
@@ -203,10 +193,8 @@
                                 </tbody>
                             </table>
                         </div>
-
                         <div class="px-3.5 py-2.5 flex justify-end bg-white border-t border-slate-100">
-                            {{ $results->links() }}
-                        </div>
+                            {{ $results->links() }}</div>
                     </div>
 
                     <div x-show="showAlamat" x-cloak
