@@ -10,7 +10,8 @@ use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * WpSearchController - VERSI RINGAN simplePaginate tanpa COUNT
+ * WpSearchController - ADOPSI pola CustomerController (Cursor Paginate + Exact Count)
+ * .airules: Thin Controller, Query di Repository, Service untuk filter
  */
 class WpSearchController extends Controller
 {
@@ -28,18 +29,36 @@ class WpSearchController extends Controller
 
         $dropdowns = $this->wpRepository->getFilterDropdownOptions($tahun);
 
-        // VERSI RINGAN: simplePaginate tanpa COUNT(*) - hemat I/O HDD
-        $results = $hasSearch
-            ? $this->wpRepository->searchMasterfilePaginatedSimple($filters, 20, $tahun)->appends($request->all())
-            : null;
+        $results = null;
+        $totalExact = 0;
+
+        if ($hasSearch) {
+            // Adopsi CustomerController: 1 query tipis + count + cursorPaginate + load 20 data
+            $data = $this->wpRepository->searchMasterfileCursorPaginated($filters, 20, $tahun);
+            $results = $data['results'];
+            $totalExact = $data['totalExact'];
+
+            // append query string untuk pagination tetap bawa filter
+            $results->appends($request->all());
+        }
 
         return view('pencarian.masterfile', array_merge($dropdowns, [
             'hasSearch' => $hasSearch,
             'results' => $results,
+            'totalExact' => $totalExact, // untuk ditampilkan di header jika butuh
             'filters' => $filters,
             'sortBy' => $filters['sort_by'],
             'sortOrder' => $filters['sort_order'],
         ]));
+    }
+
+    // Endpoint AJAX untuk hitung total jika pakai metode Lazy Count (opsional, sesuai .airules cache)
+    public function countMasterfile(Request $request)
+    {
+        $filters = $this->wpSearchService->resolveFilters($request);
+        $total = $this->wpRepository->getTotalCountCached($filters);
+
+        return response()->json(['total' => $total]);
     }
 
     public function exportMasterfileCsv(Request $request): StreamedResponse

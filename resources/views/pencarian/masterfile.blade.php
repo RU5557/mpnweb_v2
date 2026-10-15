@@ -1,15 +1,29 @@
-{{-- resources/views/pencarian/masterfile.blade.php - VERSI PIMPINAN CLEAN + SUDAH PAKAI COMPONENT page-header --}}
+{{-- resources/views/pencarian/masterfile.blade.php - VERSI PIMPINAN CLEAN FIX --}}
 @extends('layouts.app')
 @section('title', 'Pencarian Masterfile WP - MPNWEB')
 
 @section('content')
+    @php
+        // FIX CLEAN: subtitle dihitung dulu biar tidak muncul @if literal di header (sesuai screenshot error)
+        $subtitleClean = 'Data Masterfile WP • Tahun ' . date('Y');
+        if (isset($totalExact) && $totalExact > 0) {
+            $subtitleClean .= ' • Ditemukan ' . number_format($totalExact, 0, ',', '.') . ' Wajib Pajak';
+        }
+    @endphp
+
     <div class="space-y-4" x-data="{ loading: false, showAlamat: false, alamatDetail: '' }">
-        {{-- HEADER SUDAH PAKAI COMPONENT - ukuran besar proporsional sama seperti masterfile WP yang bagus menurut pimpinan --}}
-        <x-layout.page-header title="Pencarian Masterfile Wajib Pajak"
-            subtitle="Data Masterfile WP • Tahun {{ date('Y') }}" icon="fa-users-gear" />
+        {{-- HEADER PAKAI COMPONENT - sudah besar proporsional --}}
+        <x-layout.page-header :title="__('Pencarian Masterfile Wajib Pajak')" :subtitle="$subtitleClean" icon="fa-users-gear">
+            @if (isset($totalExact) && $hasSearch && $totalExact > 0)
+                <span
+                    class="hidden md:inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold px-2.5 py-1 rounded-md">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Total: {{ number_format($totalExact, 0, ',', '.') }}
+                </span>
+            @endif
+        </x-layout.page-header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-            {{-- FILTER CLEAN - tanpa label teknis --}}
             <div
                 class="lg:col-span-3 bg-white p-3.5 rounded-lg shadow-2xs border border-slate-200/90 space-y-3 sticky top-20">
                 <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
@@ -17,29 +31,23 @@
                         <i class="fa-solid fa-filter text-amber-500"></i><span>Filter Pencarian</span>
                     </div>
                     <a href="{{ route('pencarian.masterfile') }}"
-                        class="text-[11px] text-slate-400 hover:text-blue-950 transition flex items-center gap-1">
-                        <i class="fa-solid fa-rotate-left text-[10px]"></i> Reset
-                    </a>
+                        class="text-[11px] text-slate-400 hover:text-blue-950 transition">Reset</a>
                 </div>
-
                 <form action="{{ route('pencarian.masterfile') }}" method="GET" @submit="loading=true"
                     class="space-y-2.5">
                     <input type="hidden" name="has_search" value="1">
                     <input type="hidden" name="sort_by" value="{{ $sortBy }}">
                     <input type="hidden" name="sort_order" value="{{ $sortOrder }}">
-
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">NPWP</label><input type="text"
-                            name="npwp" value="{{ $filters['npwp'] ?? '' }}" placeholder="Masukkan NPWP..."
-                            class="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-950/20 focus:border-blue-950 font-medium">
+                            name="npwp" value="{{ $filters['npwp'] ?? '' }}" placeholder="16 / 15 digit..."
+                            class="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-md px-2.5 py-1.5 focus:border-blue-950 font-mono">
                     </div>
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Nama Wajib Pajak</label><input
-                            type="text" name="nama" value="{{ $filters['nama'] ?? '' }}"
-                            placeholder="Masukkan Nama WP..."
-                            class="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-950/20 focus:border-blue-950 font-medium">
+                            type="text" name="nama" value="{{ $filters['nama'] ?? '' }}" placeholder="Min. 3 huruf..."
+                            class="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-md px-2.5 py-1.5 focus:border-blue-950 font-medium">
                     </div>
-
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">KLU</label><select name="klu"
-                            class="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-md px-2 py-1.5 font-medium">
+                            class="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua KLU --</option>
                             @foreach ($listKlu as $opt)
                                 <option value="{{ $opt }}" @selected(($filters['klu'] ?? '') == $opt)>{{ $opt }}
@@ -48,8 +56,7 @@
                         </select>
                     </div>
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Kelurahan</label><select
-                            name="kelurahan"
-                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
+                            name="kelurahan" class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua Kelurahan --</option>
                             @foreach ($listKelurahan as $opt)
                                 <option value="{{ $opt }}" @selected(($filters['kelurahan'] ?? '') == $opt)>{{ $opt }}
@@ -58,8 +65,7 @@
                         </select>
                     </div>
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Kecamatan</label><select
-                            name="kecamatan"
-                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
+                            name="kecamatan" class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua Kecamatan --</option>
                             @foreach ($listKecamatan as $opt)
                                 <option value="{{ $opt }}" @selected(($filters['kecamatan'] ?? '') == $opt)>{{ $opt }}
@@ -68,8 +74,7 @@
                         </select>
                     </div>
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Jenis Wajib Pajak</label><select
-                            name="jenis"
-                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
+                            name="jenis" class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua Jenis --</option>
                             @foreach ($listJenis as $opt)
                                 <option value="{{ $opt }}" @selected(($filters['jenis'] ?? '') == $opt)>{{ $opt }}
@@ -78,7 +83,7 @@
                         </select>
                     </div>
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Status</label><select name="status"
-                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
+                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua Status --</option>
                             @foreach ($listStatus as $opt)
                                 <option value="{{ $opt }}" @selected(($filters['status'] ?? '') == $opt)>{{ $opt }}
@@ -86,7 +91,6 @@
                             @endforeach
                         </select>
                     </div>
-
                     <div class="grid grid-cols-2 gap-2">
                         <div><label class="block text-[10px] font-bold text-slate-700 mb-1">Tgl Daftar Awal</label><input
                                 type="date" name="tgl_daftar_awal" value="{{ $filters['tgl_daftar_awal'] ?? '' }}"
@@ -95,10 +99,9 @@
                                 type="date" name="tgl_daftar_akhir" value="{{ $filters['tgl_daftar_akhir'] ?? '' }}"
                                 class="w-full bg-white border border-slate-300 text-xs rounded-md px-1.5 py-1.5"></div>
                     </div>
-
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Account
                             Representative</label><select name="nip_ar"
-                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
+                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua AR --</option>
                             @foreach ($listAr as $ar)
                                 <option value="{{ $ar->nip }}" @selected(($filters['nip_ar'] ?? '') == $ar->nip)>{{ $ar->nama }}
@@ -107,15 +110,13 @@
                         </select>
                     </div>
                     <div><label class="block text-[11px] font-bold text-slate-700 mb-1">Juru Sita</label><select
-                            name="nip_jspn"
-                            class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5 font-medium">
+                            name="nip_jspn" class="w-full bg-white border border-slate-300 text-xs rounded-md px-2 py-1.5">
                             <option value="">-- Semua Juru Sita --</option>
                             @foreach ($listJspn as $jspn)
                                 <option value="{{ $jspn->nip }}" @selected(($filters['nip_jspn'] ?? ($filters['nip_js'] ?? '')) == $jspn->nip)>{{ $jspn->nama }}
                                 </option>
                             @endforeach
                         </select></div>
-
                     <div class="pt-2"><button type="submit" :disabled="loading"
                             class="w-full bg-blue-950 hover:bg-slate-900 text-amber-400 border border-amber-500/20 text-xs font-extrabold py-2.5 rounded-md transition shadow-sm flex items-center justify-center gap-2"><i
                                 x-show="loading" class="fa-solid fa-circle-notch fa-spin"></i><i x-show="!loading"
@@ -124,42 +125,38 @@
                 </form>
             </div>
 
-            {{-- HASIL CLEAN --}}
             <div class="lg:col-span-9">
                 @if ($hasSearch && isset($results))
                     <div class="bg-white rounded-lg shadow-2xs border border-slate-200/90 overflow-hidden">
                         <div
                             class="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/50 flex flex-wrap justify-between items-center gap-2">
                             <div class="flex items-center gap-2.5">
-                                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                 <span class="text-[11px] font-extrabold text-blue-950 uppercase tracking-wider">Hasil
                                     Pencarian</span>
-                                <span class="text-[11px] text-slate-500 font-normal">Menampilkan {{ $results->count() }}
-                                    data</span>
                             </div>
                             @if ($results->count() > 0)
                                 <a href="{{ route('pencarian.masterfile.export', request()->all()) }}"
-                                    class="bg-white hover:bg-slate-50 text-blue-950 border border-slate-300 text-[11px] font-bold px-3 py-1 rounded-md transition flex items-center gap-1.5 shadow-2xs"><i
+                                    class="bg-white hover:bg-slate-50 text-blue-950 border border-slate-300 text-[11px] font-bold px-3 py-1 rounded-md flex items-center gap-1.5"><i
                                         class="fa-solid fa-file-excel text-emerald-600"></i>Export CSV</a>
                             @endif
                         </div>
-
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
                                 <thead
                                     class="bg-slate-100/70 text-blue-950 font-extrabold border-b border-slate-200 uppercase text-[10px] tracking-wider">
                                     <tr>
-                                        <th class="px-3 py-2.5 font-extrabold">NPWP</th>
-                                        <th class="px-3 py-2.5 font-extrabold">Nama Wajib Pajak</th>
-                                        <th class="px-3 py-2.5 font-extrabold w-[30%]">Alamat</th>
-                                        <th class="px-3 py-2.5 font-extrabold">Petugas</th>
-                                        <th class="px-3 py-2.5 font-extrabold">Status</th>
+                                        <th class="px-3 py-2.5">NPWP</th>
+                                        <th class="px-3 py-2.5">Nama Wajib Pajak</th>
+                                        <th class="px-3 py-2.5 w-[30%]">Alamat</th>
+                                        <th class="px-3 py-2.5">Petugas</th>
+                                        <th class="px-3 py-2.5">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
                                     @forelse($results as $wp)
-                                        <tr class="hover:bg-slate-50/70 transition">
-                                            <td class="px-3 py-2.5 font-mono text-[11px] leading-tight text-slate-800">
+                                        <tr class="hover:bg-slate-50/70">
+                                            <td class="px-3 py-2.5 font-mono text-[11px] text-slate-800 leading-tight">
                                                 {{ $wp->npwp15 }}<br><span
                                                     class="text-slate-400 text-[10px]">{{ $wp->npwp16 }}</span></td>
                                             <td class="px-3 py-2.5 leading-tight">
@@ -168,7 +165,7 @@
                                                     {{ $wp->klu }}</div>
                                             </td>
                                             <td class="px-3 py-2.5">
-                                                <div class="cursor-pointer" title="{{ $wp->alamat_full ?? $wp->alamat }}"
+                                                <div class="cursor-pointer"
                                                     @click="showAlamat=true; alamatDetail='{{ addslashes($wp->alamat_full ?? $wp->alamat) }}'">
                                                     <p class="text-[11px] leading-snug text-slate-600 line-clamp-2">
                                                         {{ $wp->alamat }}</p>
@@ -181,22 +178,44 @@
                                                     {{ $wp->js->nama ?? ($wp->nip_js ?? '-') }}</div>
                                             </td>
                                             <td class="px-3 py-2.5"><span
-                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border {{ $wp->status == 'NORMAL' ? 'bg-slate-50 text-slate-700 border-slate-200' : ($wp->status == 'AKTIF' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200') }}">{{ $wp->status }}</span>
+                                                    class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border {{ $wp->status == 'NORMAL' ? 'bg-slate-50 text-slate-700 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200' }}">{{ $wp->status }}</span>
                                             </td>
                                         </tr>
                                     @empty
                                         <tr>
                                             <td colspan="5" class="px-3 py-8 text-center text-slate-400 text-xs">Tidak
-                                                ada data yang ditemukan</td>
+                                                ada data</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
                             </table>
                         </div>
-                        <div class="px-3.5 py-2.5 flex justify-end bg-white border-t border-slate-100">
-                            {{ $results->links() }}</div>
+                        {{-- FIX CLEAN: tidak ada label teknis cache 10 menit lagi --}}
+                        <div class="px-3.5 py-2.5 flex justify-end items-center bg-white border-t border-slate-100">
+                            <div class="flex items-center gap-2">
+                                @if ($results->hasPages())
+                                    @if ($results->onFirstPage())
+                                        <span
+                                            class="px-3 py-1.5 text-[11px] bg-slate-100 text-slate-400 rounded-md border">←
+                                            Previous</span>
+                                    @else
+                                        <a href="{{ $results->previousPageUrl() }}"
+                                            class="px-3 py-1.5 text-[11px] bg-white border border-slate-300 text-blue-950 font-bold rounded-md hover:bg-slate-50">←
+                                            Previous</a>
+                                    @endif
+                                    @if ($results->hasMorePages())
+                                        <a href="{{ $results->nextPageUrl() }}"
+                                            class="px-3 py-1.5 text-[11px] bg-blue-950 text-amber-400 font-bold rounded-md border border-amber-500/20">Next
+                                            →</a>
+                                    @else
+                                        <span
+                                            class="px-3 py-1.5 text-[11px] bg-slate-100 text-slate-400 rounded-md border">Next
+                                            →</span>
+                                    @endif
+                                @endif
+                            </div>
+                        </div>
                     </div>
-
                     <div x-show="showAlamat" x-cloak
                         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
                         @click.self="showAlamat=false">
@@ -215,11 +234,12 @@
                 @else
                     <div class="bg-white border border-dashed border-slate-300 rounded-lg p-12 text-center">
                         <div
-                            class="w-12 h-12 bg-slate-50 border border-slate-200 text-blue-950 rounded-xl flex items-center justify-center mx-auto mb-3">
-                            <i class="fa-solid fa-users text-lg text-amber-500"></i></div>
-                        <h3 class="text-sm font-extrabold text-blue-950 uppercase tracking-tight">Pencarian Masterfile</h3>
+                            class="w-12 h-12 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center mx-auto mb-3">
+                            <i class="fa-solid fa-users text-lg text-amber-500"></i>
+                        </div>
+                        <h3 class="text-sm font-extrabold text-blue-950 uppercase">Pencarian Masterfile</h3>
                         <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Gunakan filter di samping untuk mencari
-                            data Wajib Pajak</p>
+                            data Wajib Pajak.</p>
                     </div>
                 @endif
             </div>

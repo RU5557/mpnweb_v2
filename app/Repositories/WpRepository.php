@@ -4,16 +4,17 @@ namespace App\Repositories;
 
 use App\Models\Mfwp;
 use App\Models\Pegawai;
-use Illuminate\Contracts\Pagination\Paginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as BaseQueryBuilder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * WpRepository - VERSI PALING RINGAN HDD (simplePaginate tanpa COUNT)
- * - Tidak ada SELECT COUNT(*) -> hemat I/O disk 50-70% di HDD 1TB
- * - Cocok untuk server i5 Gen9 8GB sesuai .airules #3
+ * WpRepository - VERSI CURSOR PAGINATE (adopsi CustomerController) + sesuai .airules
+ * - Thin Repository, Query terpusat, Hemat I/O HDD
+ * - Select tipis tanpa alamat_full saat COUNT
+ * - CursorPaginate (no OFFSET) = paling cepat untuk HDD 1TB
+ * - Load AR/JSPN hanya untuk 20 data yang tampil
  */
 class WpRepository
 {
@@ -33,8 +34,13 @@ class WpRepository
         ];
     }
 
+    /**
+     * Build query tipis - TANPA alamat_full, TANPA JOIN berat
+     * Sesuai pola CustomerController: select('id','code','name'...) saja
+     */
     public function buildMasterfileQuery(array $filters): Builder
     {
+        // .airules #3: select tipis hemat I/O, alamat dipotong 120 char di DB
         $query = Mfwp::query()->from('mfwp')->select([
             'mfwp.npwp15', 'mfwp.npwp16', 'mfwp.nama', 'mfwp.kelurahan', 'mfwp.kecamatan', 'mfwp.kota', 'mfwp.jenis', 'mfwp.status', 'mfwp.klu', 'mfwp.tanggal_daftar', 'mfwp.nip_ar', 'mfwp.nip_js',
             DB::raw('LEFT(mfwp.alamat, 120) as alamat'),
@@ -53,7 +59,6 @@ class WpRepository
                 }
             }
         }
-
         if (! empty($filters['nama'])) {
             $nama = trim((string) $filters['nama']);
             $words = array_filter(explode(' ', $nama));
@@ -71,13 +76,11 @@ class WpRepository
                 $query->whereRaw('MATCH(mfwp.nama) AGAINST(? IN BOOLEAN MODE)', [$phrase]);
             }
         }
-
         foreach (['klu', 'kelurahan', 'kecamatan', 'jenis', 'status'] as $col) {
             if (! empty($filters[$col])) {
                 $query->where("mfwp.{$col}", $filters[$col]);
             }
         }
-
         if (! empty($filters['nip_ar'])) {
             $query->where('mfwp.nip_ar', $filters['nip_ar']);
         }
@@ -85,7 +88,6 @@ class WpRepository
         if (! empty($nipJspn)) {
             $query->where('mfwp.nip_js', $nipJspn);
         }
-
         $awal = $filters['tgl_daftar_awal'] ?? null;
         $akhir = $filters['tgl_daftar_akhir'] ?? null;
         if ($awal && $akhir) {
@@ -100,33 +102,54 @@ class WpRepository
     }
 
     /**
-     * VERSI RINGAN: simplePaginate tanpa COUNT(*) - hemat I/O HDD 50-70%
-     * Tidak ada query SELECT COUNT(*), hanya 1 query LIMIT
+     * METODE ADOPSI CustomerController - Exact Total + Cursor Paginate
+     * .airules: Hemat I/O HDD, Thin Repository
      */
-    public function searchMasterfilePaginatedSimple(array $filters, int $perPage = 20, ?int $tahun = null): Paginator
+    public function searchMasterfileCursorPaginated(array $filters, int $perPage = 20, ?int $tahun = null): array
     {
         $tahun = $tahun ?? (int) date('Y');
         $query = $this->buildMasterfileQuery($filters);
 
-        $query->with([
+        // 3. Hitung Exact Total - Clone query tanpa ORDER BY, tanpa LIMIT (sesuai pola CustomerController)
+        // MariaDB baca dari Index, bukan full table scan
+        $totalExact = (clone $query)->getQuery()->count();
+
+        // 4. Cursor Pagination - Super cepat, tanpa OFFSET (OFFSET 50000 di HDD sangat berat)
+        // Pakai npwp15 sebagai cursor karena unique & indexed, bukan id
+        $sortBy = $filters['sort_by'] ?? 'nama';
+        $allowed = ['npwp15', 'nama', 'jenis', 'status', 'tanggal_daftar'];
+        $sortColumn = in_array($sortBy, $allowed, true) ? "mfwp.{$sortBy}" : 'mfwp.nama';
+
+        $paginator = $query->orderBy($sortColumn, $filters['sort_order'] ?? 'asc')
+            ->orderBy('mfwp.npwp15', 'asc') // tie-breaker wajib untuk cursor
+            ->cursorPaginate($perPage);
+
+        // 5. Load AR/JSPN hanya untuk 20 data yang tampil (sesuai CustomerController ->load('address'))
+        $paginator->load([
             'ar' => fn ($q) => $q->where('tahun', $tahun)->select('nip', 'nama', 'tahun'),
             'js' => fn ($q) => $q->where('tahun', $tahun)->select('nip', 'nama', 'tahun'),
         ]);
 
-        $sortBy = $filters['sort_by'] ?? 'nama';
-        $sortOrder = $filters['sort_order'] ?? 'asc';
-        $allowed = ['npwp15', 'nama', 'jenis', 'status', 'tanggal_daftar'];
-        if (in_array($sortBy, $allowed, true)) {
-            $query->orderBy("mfwp.{$sortBy}", $sortOrder);
-        } else {
-            $query->orderBy('mfwp.nama', 'asc');
-        }
-        $query->orderBy('mfwp.npwp15', 'asc');
-
-        // HEMAT I/O: simplePaginate hanya SELECT ... LIMIT, tanpa COUNT
-        return $query->simplePaginate($perPage);
+        return [
+            'results' => $paginator,
+            'totalExact' => $totalExact,
+        ];
     }
 
+    /**
+     * Versi dengan Cache untuk pimpinan (jika butuh total tapi tidak mau COUNT tiap load)
+     * .airules: Cache 10 menit untuk query mahal
+     */
+    public function getTotalCountCached(array $filters): int
+    {
+        $key = 'mf_count_'.md5(json_encode($filters));
+
+        return Cache::remember($key, 600, function () use ($filters) {
+            return $this->buildMasterfileQuery($filters)->getQuery()->count();
+        });
+    }
+
+    // Untuk Export CSV tetap pakai QueryBuilder + JOIN (sesuai .airules export via service)
     public function buildExportBaseQuery(array $filters, int $tahun): BaseQueryBuilder
     {
         $baseQuery = Mfwp::query()->from('mfwp');
