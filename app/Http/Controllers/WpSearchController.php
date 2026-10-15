@@ -4,67 +4,51 @@ namespace App\Http\Controllers;
 
 use App\Repositories\WpRepository;
 use App\Services\CsvExportService;
+use App\Services\WpSearchService;
 use Illuminate\Http\Request;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
+/**
+ * WpSearchController - Thin Controller (Wajib .airules #8)
+ * - Logic filter di WpSearchService
+ * - Query di WpRepository
+ * - Export via CsvExportService + CanStreamCsv trait
+ */
 class WpSearchController extends Controller
 {
     public function __construct(
         protected WpRepository $wpRepository,
-        protected CsvExportService $csvExportService
+        protected CsvExportService $csvExportService,
+        protected WpSearchService $wpSearchService
     ) {}
 
-    public function searchMasterfile(Request $request)
+    public function searchMasterfile(Request $request): View
     {
         $tahun = (int) date('Y');
-        $filters = $request->all();
-
-        $dropdowns = $this->wpRepository->getFilterDropdownOptions($tahun);
+        $filters = $this->wpSearchService->resolveFilters($request);
         $hasSearch = $request->has('has_search');
 
-        $results = null;
-        if ($hasSearch) {
-            $results = $this->wpRepository->searchMasterfilePaginated($filters, 20, $tahun);
-            $results->appends($filters);
-        }
+        $dropdowns = $this->wpRepository->getFilterDropdownOptions($tahun);
+        $results = $hasSearch
+            ? $this->wpRepository->searchMasterfilePaginated($filters, 20, $tahun)->appends($request->all())
+            : null;
 
-        $npwpInput = trim((string) $request->get('npwp'));
-        $namaWp = trim((string) $request->get('nama'));
-        $klu = $request->get('klu');
-        $kelurahan = $request->get('kelurahan');
-        $kecamatan = $request->get('kecamatan');
-        $jenis = $request->get('jenis');
-        $status = $request->get('status');
-        $tglDaftarAwal = $request->get('tgl_daftar_awal');
-        $tglDaftarAkhir = $request->get('tgl_daftar_akhir');
-        $nipAr = $request->get('nip_ar');
-        $nipJs = $request->get('nip_js');
-        $sortBy = $request->get('sort_by', 'nama');
-        $sortOrder = strtolower($request->get('sort_order', 'asc')) === 'desc' ? 'desc' : 'asc';
-
-        return view('pencarian.masterfile', array_merge($dropdowns, compact(
-            'hasSearch',
-            'results',
-            'npwpInput',
-            'namaWp',
-            'klu',
-            'kelurahan',
-            'kecamatan',
-            'jenis',
-            'status',
-            'tglDaftarAwal',
-            'tglDaftarAkhir',
-            'nipAr',
-            'nipJs',
-            'sortBy',
-            'sortOrder'
-        )));
+        // Kirim $filters utuh ke view, bukan 12 variabel terpisah (hemat memory)
+        return view('pencarian.masterfile', array_merge($dropdowns, [
+            'hasSearch' => $hasSearch,
+            'results' => $results,
+            'filters' => $filters,
+            'sortBy' => $filters['sort_by'],
+            'sortOrder' => $filters['sort_order'],
+        ]));
     }
 
     public function exportMasterfileCsv(Request $request): StreamedResponse
     {
         $tahun = (int) date('Y');
-        $filters = $request->all();
+        $filters = $this->wpSearchService->resolveFilters($request);
+
         $filename = 'export_masterfile_'.date('Ymd_His').'.csv';
 
         $columnsMap = [
