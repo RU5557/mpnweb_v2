@@ -3,7 +3,9 @@
 3. tujuan utama tetap efisien, performa cepat, dan tidak membebankan memory php ataupun memory server serta I/O disk
 4. jangan pernah berasumsi, jika ada hal yang diperlukan atau dibutuhkan mintalah user untuk melampirkan hal yang dibutuhkan seperti file php, csv, txt atau apapun.
 5. sebelum menjawab, carilah rujukan penerapan kaidah laravel 12 terbaik sesuai dengan hal yang sedang didiskusikan
-6. export csv menggunakan service dan traits
+6. export csv menggunakan kaidah laravel 12 dan mariadb 10.4 terbaik sesuai kebutuhan dan jenis datanya
 7. query builder ditaruh semua di repository
 8. WAJIB menggunakan kaidah thin controller
 9. jika ada masukan silahkan disampaikan dan diselesaikan menggunakan metode klinis laravel 12 dan mariadb
+10. penamaan components atau service atau helper yang reusable atau akan dipakai di halaman lain, dibuat general atau tidak terkhusus untuk suatu halaman atau fitur tertentu
+11. view blade dibuat bersih dan rapih
